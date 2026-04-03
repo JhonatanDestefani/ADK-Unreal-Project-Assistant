@@ -14,7 +14,8 @@
       "Bash(npx @botpress/cli deploy --bot-id 48878631-ed98-4100-9996-b7acfbeb480b --token bp_pat_wZtU3d3OV4TGSTYR0E9qxVBCLmYWbL7KEQFb)",
       "Bash(npx @botpress/cli --help)",
       "Read(//c/Users/vanes/Desktop/Unreal Professor/**)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(taskkill //F //IM node.exe)"
     ]
   }
 }
