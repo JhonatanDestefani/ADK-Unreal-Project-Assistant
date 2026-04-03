@@ -1,8 +1,8 @@
-# Unreal Guide
+# Unreal Project Assistant
 
 An AI-powered backend API that helps Unreal Engine 5 developers understand engine systems, troubleshoot problems, review C++ code, and learn architectural patterns. Built with Node.js, Express, and Botpress Cloud AI.
 
-Unreal Guide is not a generic chatbot — it **parses your actual UE5 project**, enriches every question with a curated knowledge base, and gives context-aware answers. It understands your classes, inheritance chains, properties, and functions before answering.
+Unreal Project Assistant is not a generic chatbot — it **parses your actual UE5 project**, enriches every question with a curated knowledge base, and gives context-aware answers. It understands your classes, inheritance chains, properties, and functions before answering.
 
 ## What It Does
 
@@ -91,8 +91,8 @@ Each pattern gives you the structure to follow, what to avoid, good practices, a
 ### Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/unreal-guide.git
-cd unreal-guide
+git clone https://github.com/YOUR_USERNAME/Unreal-Project-Assistant.git
+cd Unreal-Project-Assistant
 npm install
 ```
 
@@ -128,7 +128,7 @@ You should see:
 Knowledge Base loaded:
   Engine Reference: 42 categories, 132 entries
   Troubleshooting: 9 categories, 79 entries
-Unreal Guide running on port 3000
+Unreal Project Assistant running on port 3000
 ```
 
 ### Verify
@@ -192,7 +192,7 @@ curl -X POST http://localhost:3000/api/parse-log \
 
 ## Integrating with Unreal Engine
 
-Unreal Guide is a REST API — any HTTP client inside Unreal can talk to it. Here are the main approaches:
+Unreal Project Assistant is a REST API — any HTTP client inside Unreal can talk to it. Here are the main approaches:
 
 ### Option 1: Unreal Editor Plugin (C++)
 

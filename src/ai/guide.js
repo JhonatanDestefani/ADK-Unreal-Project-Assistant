@@ -74,7 +74,7 @@ function isUnrealRelated(question, context) {
   return UE_KEYWORDS.some(keyword => lower.includes(keyword));
 }
 
-const OFF_TOPIC_RESPONSE = `I appreciate the question, but I'm **Unreal Guide** — I specialize exclusively in **Unreal Engine** development!
+const OFF_TOPIC_RESPONSE = `I appreciate the question, but I'm **Unreal Project Assistant** — I specialize exclusively in **Unreal Engine** development!
 
 I can help you with things like:
 - **C++ & Blueprints** — classes, macros, best practices
@@ -123,7 +123,7 @@ async function ensureUser() {
   if (userId) return userId;
 
   const result = await botpressRequest('POST', '/chat/users', {
-    name: 'Unreal Guide User',
+    name: 'Unreal Project Assistant User',
     channel: 'channel',
     tags: {},
   });

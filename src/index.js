@@ -21,7 +21,7 @@ console.log(`  Troubleshooting: ${stats.troubleshooting.categories} categories, 
 app.get('/', (req, res) => {
   res.json({
     status: 'running',
-    name: 'Unreal Guide',
+    name: 'Unreal Project Assistant',
     knowledgeBase: knowledge.getStats(),
   });
 });
@@ -31,5 +31,5 @@ app.use('/api', analyzeRoutes);
 app.use('/api', diagnoseRoutes);
 
 app.listen(PORT, () => {
-  console.log(`Unreal Guide running on port ${PORT}`);
+  console.log(`Unreal Project Assistant running on port ${PORT}`);
 });

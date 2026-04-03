@@ -1,8 +1,8 @@
-# CLAUDE.md — Unreal Guide
+# CLAUDE.md — Unreal Project Assistant
 
 ## What is this project?
 
-Unreal Guide is a Node.js/Express backend API that provides AI-powered Unreal Engine 5 development assistance. It combines a Botpress-powered conversational AI, a dual knowledge base (engine reference + troubleshooting), C++ project parsing, and Blueprint analysis.
+Unreal Project Assistant is a Node.js/Express backend API that provides AI-powered Unreal Engine 5 development assistance. It combines a Botpress-powered conversational AI, a dual knowledge base (engine reference + troubleshooting), C++ project parsing, and Blueprint analysis.
 
 ## Tech Stack
 
