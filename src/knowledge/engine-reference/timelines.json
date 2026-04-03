@@ -1,0 +1,105 @@
+{
+  "category": "timelines",
+  "displayName": "Timelines",
+  "description": "UE5 Timelines: UTimelineComponent, float/vector/color/event tracks, play/reverse/loop, and smooth interpolation over time",
+  "entries": [
+    {
+      "id": "ref_timeline_001",
+      "title": "Timeline Component Overview",
+      "description": "Timelines are components that drive values along a curve over time. They are the go-to tool for smoothly interpolating anything: doors opening, lights fading, platforms moving, UI animations, and more.",
+      "whatItIs": "UTimelineComponent is an ActorComponent that plays a set of curves (float, vector, color, event) over a configurable duration. Each frame, it evaluates the curves at the current playback position and fires delegates with the interpolated values, making it the simplest way to animate gameplay values over time.",
+      "whenToUse": [
+        "Smoothly opening/closing doors, gates, elevators, or any moving platform",
+        "Fading lights, materials, or opacity in and out",
+        "Moving actors along a path over time (point A to point B with easing)",
+        "Any gameplay value that needs to change smoothly over a duration — health bars filling, camera transitions, color shifts",
+        "When you need play, reverse, pause, and loop control over an interpolation",
+        "Blueprint users who need animation-like control without Sequencer"
+      ],
+      "whenNotToUse": [
+        "Per-frame continuous interpolation like camera follow — use FInterpTo in Tick instead (no start/end concept)",
+        "Skeletal animation playback — use AnimMontages or AnimBlueprints",
+        "Cinematic sequences with camera cuts and multiple actors — use Level Sequencer",
+        "One-shot delayed actions — use Timers instead (simpler for delay-only needs)",
+        "When the interpolation has no duration concept (e.g., 'move toward target until reached') — use FInterpTo"
+      ],
+      "relatedClasses": [
+        "UTimelineComponent",
+        "FTimeline",
+        "UCurveFloat",
+        "UCurveVector",
+        "UCurveLinearColor",
+        "FOnTimelineFloat",
+        "FOnTimelineVector",
+        "FOnTimelineEvent",
+        "FRuntimeFloatCurve"
+      ],
+      "commonMistakes": [
+        "Creating the Timeline in BeginPlay instead of the constructor — Timeline components should be CreateDefaultSubobject in the constructor, then configured in BeginPlay",
+        "Forgetting to call RegisterComponent() when adding a Timeline at runtime (CreateDefaultSubobject auto-registers)",
+        "Not adding a curve to the timeline — it plays but the delegate never fires because there's no curve to evaluate",
+        "Setting the timeline length but not the curve range to match — if the curve keys end at 1.0 but timeline length is 5.0, you get a flat curve after 1.0",
+        "Calling Play() every frame instead of once — this restarts the timeline every frame, so it never progresses past the first frame",
+        "Not binding the delegate before calling Play() — the timeline plays but nothing happens because no callback is connected"
+      ],
+      "keyPoints": [
+        "UTimelineComponent: ActorComponent that evaluates curves over time and fires delegates",
+        "Float Track: maps time → float value. Most common for lerping between two states.",
+        "Vector Track: maps time → FVector. Good for position interpolation.",
+        "Color Track: maps time → FLinearColor. Good for material color changes.",
+        "Event Track: fires a delegate at a specific time point (like an AnimNotify for timelines).",
+        "Play(), PlayFromStart(), Reverse(), ReverseFromEnd(), Stop(): playback control",
+        "SetPlayRate(): speed up or slow down. SetNewTime(): jump to a position.",
+        "bLooping: if true, timeline repeats automatically.",
+        "OnTimelineFinished: delegate that fires when playback ends (or each loop cycle).",
+        "Timeline length can be set independently from curve length."
+      ],
+      "codeExample": "// === C++ Timeline: Smooth door open/close ===\n// Header\nUPROPERTY(VisibleAnywhere)\nUTimelineComponent* DoorTimeline;\n\nUPROPERTY(EditAnywhere)\nUCurveFloat* DoorCurve; // Set in editor — 0 to 1 over 1 second\n\nFOnTimelineFloat DoorTimelineCallback;\nFOnTimelineEvent DoorTimelineFinished;\n\nUFUNCTION()\nvoid DoorTimelineUpdate(float Value);\n\nUFUNCTION()\nvoid DoorTimelineEnd();\n\nbool bIsOpen = false;\nFRotator ClosedRotation;\nFRotator OpenRotation;\n\n// Source — Constructor\nAMyDoor::AMyDoor() {\n    DoorTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT(\"DoorTimeline\"));\n}\n\n// Source — BeginPlay\nvoid AMyDoor::BeginPlay() {\n    Super::BeginPlay();\n    \n    ClosedRotation = DoorMesh->GetRelativeRotation();\n    OpenRotation = ClosedRotation + FRotator(0.f, 90.f, 0.f);\n    \n    if (DoorCurve) {\n        DoorTimelineCallback.BindDynamic(this, &AMyDoor::DoorTimelineUpdate);\n        DoorTimelineFinished.BindDynamic(this, &AMyDoor::DoorTimelineEnd);\n        \n        DoorTimeline->AddInterpFloat(DoorCurve, DoorTimelineCallback);\n        DoorTimeline->SetTimelineFinishedFunc(DoorTimelineFinished);\n    }\n}\n\nvoid AMyDoor::ToggleDoor() {\n    if (bIsOpen) {\n        DoorTimeline->Reverse();\n    } else {\n        DoorTimeline->Play();\n    }\n    bIsOpen = !bIsOpen;\n}\n\nvoid AMyDoor::DoorTimelineUpdate(float Value) {\n    FRotator NewRot = FMath::Lerp(ClosedRotation, OpenRotation, Value);\n    DoorMesh->SetRelativeRotation(NewRot);\n}\n\nvoid AMyDoor::DoorTimelineEnd() {\n    // Door finished opening or closing\n}",
+      "tags": ["timeline", "timeline component", "curve", "interpolation", "door", "lerp", "play", "reverse"]
+    },
+    {
+      "id": "ref_timeline_002",
+      "title": "Blueprint Timelines",
+      "description": "In Blueprints, Timelines are special nodes that play float/vector/color/event tracks directly in the EventGraph. They are one of the most powerful and commonly used Blueprint features.",
+      "whatItIs": "Blueprint Timeline nodes are visual wrappers around UTimelineComponent that let designers create and edit curves directly inside the Blueprint EventGraph. They provide Play, Reverse, Update, and Finished execution pins with real-time curve editing — no C++ or external assets needed.",
+      "whenToUse": [
+        "Any Blueprint that needs smooth value changes over time — doors, elevators, traps, UI effects",
+        "When designers want to visually author the interpolation curve right inside the Blueprint",
+        "Quick prototyping of movement, fading, scaling, or color transitions",
+        "When you need easy play/reverse/loop control in visual scripting"
+      ],
+      "whenNotToUse": [
+        "When you need the timeline logic in C++ — use UTimelineComponent directly",
+        "For one-shot delays — use the Delay node instead (simpler)",
+        "When the curve needs to be shared across many Blueprints — create a CurveFloat asset and use the C++ approach"
+      ],
+      "relatedClasses": [
+        "UTimelineComponent",
+        "UK2Node_Timeline",
+        "UCurveFloat",
+        "UCurveVector",
+        "UCurveLinearColor"
+      ],
+      "commonMistakes": [
+        "Calling Play every frame from Tick — the timeline restarts each frame and never progresses",
+        "Not connecting the Update pin to anything — the timeline plays but nothing happens visually",
+        "Setting a curve that goes from 0 to 1 but not using Lerp to map it to the actual value range",
+        "Forgetting to check 'Use Last Keyframe' or setting incorrect timeline length, causing the curve to not reach its end value",
+        "Creating dozens of timelines for similar animations instead of reusing one timeline with different target values",
+        "Not using the Finished pin to trigger follow-up logic, and instead using a Delay node with a guessed duration"
+      ],
+      "keyPoints": [
+        "Double-click a Timeline node to open the curve editor — add float, vector, color, or event tracks",
+        "Execution Pins: Play, Play from Start, Stop, Reverse, Reverse from End",
+        "Output Pins: Update (fires every frame with current values), Finished (fires when done), Direction",
+        "Each track outputs a value pin: a float track gives you a float pin on the Update output",
+        "Right-click in the curve editor to add keyframes. Shift+click to add points.",
+        "Set Length in the Timeline editor to control total duration",
+        "Check 'Autoplay' to start automatically on BeginPlay. Check 'Loop' for repeating.",
+        "Use Lerp nodes to map the 0-1 timeline output to your actual value range (e.g., 0-90 degrees for a door)"
+      ],
+      "codeExample": "// Blueprint Timeline workflow (described for reference):\n//\n// 1. In EventGraph, right-click > Add Timeline node > name it 'DoorTimeline'\n// 2. Double-click the Timeline node to open the curve editor\n// 3. Click '+Float Track' > name it 'Alpha'\n// 4. Add two keyframes: (Time=0, Value=0) and (Time=1, Value=1)\n// 5. Back in EventGraph:\n//    - Connect your trigger (e.g., 'Interact' event) to the 'Play' input\n//    - From the 'Update' pin, drag out and use 'Lerp (Rotator)'\n//      with A=Closed Rotation, B=Open Rotation, Alpha=the float output\n//    - Connect the Lerp result to 'Set Relative Rotation' on your door mesh\n//    - From the 'Finished' pin, add any post-animation logic\n//\n// To reverse (close the door):\n//    - Connect a second trigger to the 'Reverse' input\n//\n// The Timeline handles all the smooth interpolation automatically!",
+      "tags": ["blueprint timeline", "curve editor", "visual scripting", "lerp", "play", "reverse", "autoplay", "loop"]
+    }
+  ]
+}

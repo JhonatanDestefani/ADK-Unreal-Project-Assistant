@@ -1,0 +1,148 @@
+{
+  "category": "database",
+  "displayName": "Database",
+  "description": "Data persistence, SaveGame, DataTables, SQLite, cloud saves, and data management in UE5",
+  "entries": [
+    {
+      "id": "db_001",
+      "title": "SaveGame Not Persisting / Data Lost Between Sessions",
+      "symptoms": ["save game lost", "data not persisting", "savegame empty", "load game returns null", "save not working"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "USaveGame data is not saved properly or returns null/empty when loading in a new session.",
+      "rootCause": "The save slot name is different between save and load, the SaveGame object's UPROPERTY fields aren't set before saving, or the SaveGame class has been restructured (renamed properties) breaking deserialization.",
+      "solution": [
+        "Use consistent slot names: define as a constant string",
+        "Mark ALL properties you want saved with UPROPERTY(SaveGame) or just UPROPERTY()",
+        "Use UGameplayStatics::SaveGameToSlot() and LoadGameFromSlot()",
+        "Check the return value of LoadGameFromSlot - it returns nullptr if no save exists",
+        "For the first run, create a fresh save with default values if LoadGameFromSlot returns null",
+        "If you rename properties, old saves will lose that data - use Serialize() override for migration"
+      ],
+      "codeExample": "// Save\nUMySaveGame* SaveInstance = Cast<UMySaveGame>(\n    UGameplayStatics::CreateSaveGameObject(UMySaveGame::StaticClass()));\nSaveInstance->PlayerLevel = CurrentLevel;\nSaveInstance->PlayerLocation = GetActorLocation();\nUGameplayStatics::SaveGameToSlot(SaveInstance, TEXT(\"Slot1\"), 0);\n\n// Load\nif (UMySaveGame* LoadedGame = Cast<UMySaveGame>(\n    UGameplayStatics::LoadGameFromSlot(TEXT(\"Slot1\"), 0))) {\n    CurrentLevel = LoadedGame->PlayerLevel;\n} else {\n    // First run - no save exists, use defaults\n}",
+      "tags": ["savegame", "persist", "save", "load", "slot", "serialization"]
+    },
+    {
+      "id": "db_002",
+      "title": "DataTable Not Loading / Row Not Found",
+      "symptoms": ["datatable empty", "row not found", "datatable returns null", "findrow null", "csv import failed"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "DataTable->FindRow() returns nullptr, the DataTable appears empty at runtime, or CSV import fails.",
+      "rootCause": "The row name doesn't match (case-sensitive), the row struct type doesn't match the DataTable's row struct, the DataTable asset isn't loaded (soft reference not resolved), or the CSV format doesn't match the struct fields.",
+      "solution": [
+        "Row names are case-sensitive - verify exact match with the DataTable editor",
+        "Ensure FindRow<T> template parameter matches the DataTable's row struct exactly",
+        "If using soft references to DataTables, call LoadSynchronous() before accessing",
+        "For CSV import: first column must be 'Name' (the row name), subsequent columns must match UPROPERTY names exactly",
+        "Check the Output Log during import for field mismatch warnings",
+        "In packaged builds, ensure the DataTable is included in cooked content (referenced by a map or in additional directories)"
+      ],
+      "codeExample": "// Define the row struct\nUSTRUCT(BlueprintType)\nstruct FItemData : public FTableRowBase {\n    GENERATED_BODY()\n    UPROPERTY(EditAnywhere) FString DisplayName;\n    UPROPERTY(EditAnywhere) int32 Cost;\n    UPROPERTY(EditAnywhere) float Weight;\n};\n\n// Find a row\nif (FItemData* Row = ItemDataTable->FindRow<FItemData>(FName(\"Sword_01\"), TEXT(\"\"))) {\n    UE_LOG(LogTemp, Log, TEXT(\"Item: %s, Cost: %d\"), *Row->DisplayName, Row->Cost);\n} else {\n    UE_LOG(LogTemp, Warning, TEXT(\"Row 'Sword_01' not found!\"));\n}",
+      "tags": ["datatable", "findrow", "csv", "row struct", "data asset", "import"]
+    },
+    {
+      "id": "db_003",
+      "title": "SQLite Integration Issues",
+      "symptoms": ["sqlite not working", "sqlite plugin", "database connection failed", "sql query error", "sqlite3 unreal"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Integrating SQLite for local database storage in UE5 projects encounters build or runtime errors.",
+      "rootCause": "UE5 includes a SQLiteCore module but it's not well documented. Third-party SQLite plugins may conflict. The database file path must be writable (not inside the read-only pak file in packaged builds).",
+      "solution": [
+        "Add 'SQLiteCore' to your Build.cs for UE5's built-in SQLite support",
+        "Use FSQLiteDatabase class from the SQLiteCore module",
+        "Store the database file in FPaths::ProjectSavedDir() or FPaths::ProjectPersistentDownloadDir() for writable access",
+        "In packaged builds, use FPlatformMisc::GamePersistentDownloadDir() for platform-appropriate writable path",
+        "Handle database migrations: check schema version on startup and upgrade if needed",
+        "Always close database connections when done and handle errors gracefully"
+      ],
+      "codeExample": "// Using UE5's built-in SQLiteCore\n#include \"SQLiteDatabase.h\"\n\nFString DBPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT(\"GameData.db\"));\nFSQLiteDatabase DB;\nif (DB.Open(*DBPath, ESQLiteDatabaseOpenMode::ReadWriteCreate)) {\n    DB.Execute(TEXT(\"CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY, name TEXT, score INTEGER)\"));\n    DB.Execute(TEXT(\"INSERT INTO players (name, score) VALUES ('Player1', 100)\"));\n    DB.Close();\n}",
+      "tags": ["sqlite", "database", "sql", "local storage", "sqlitecore", "persistent"]
+    },
+    {
+      "id": "db_004",
+      "title": "Cloud Save / Platform Save System Issues",
+      "symptoms": ["cloud save not syncing", "steam cloud save", "platform save", "save conflict", "cross-platform save"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Cloud saves (Steam Cloud, console platform saves) don't sync correctly, cause conflicts, or lose data.",
+      "rootCause": "Cloud save systems sync files asynchronously. If the game reads the save before the cloud sync completes, it uses stale local data. Save conflicts occur when the same slot is modified on multiple devices.",
+      "solution": [
+        "Wait for the Online Subsystem's cloud sync to complete before loading saves",
+        "For Steam Cloud: configure auto-cloud paths in the Steamworks partner portal, not in-engine",
+        "Implement save versioning: include a version number in your save data to handle format changes",
+        "Handle conflicts by showing a UI: 'Use local save or cloud save?'",
+        "Use timestamps in saves to determine which is newer for automatic conflict resolution",
+        "For console platforms (PS5, Xbox), use the platform-specific save APIs via the Online Subsystem"
+      ],
+      "tags": ["cloud save", "steam cloud", "sync", "platform", "conflict", "cross-platform"]
+    },
+    {
+      "id": "db_005",
+      "title": "Data Asset vs DataTable: When to Use Which",
+      "symptoms": ["data asset or datatable", "primary data asset", "asset manager", "data driven design", "config data"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Confusion about whether to use DataTables, DataAssets, PrimaryDataAssets, or config files for game data.",
+      "rootCause": "UE5 offers multiple data management systems. Choosing the wrong one leads to maintenance headaches, memory issues, or difficulty iterating on content.",
+      "solution": [
+        "DataTables: best for large collections of similar data (item databases, loot tables, dialogue). Easy CSV import/export for designers",
+        "UDataAsset: best for individual complex data objects (character ability definitions, quest definitions). Can reference other assets directly",
+        "UPrimaryDataAsset: extends UDataAsset with Asset Manager support. Use for assets that need async loading, bundling, or runtime discovery",
+        "Config files (.ini): use for settings that change between environments (server URLs, feature flags). Not for gameplay data",
+        "SaveGame objects: use ONLY for runtime player state that persists between sessions",
+        "CurveTable: specialized DataTable for float curves (damage falloff, XP progression)"
+      ],
+      "codeExample": "// UPrimaryDataAsset for items\nUCLASS()\nclass UItemDefinition : public UPrimaryDataAsset {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditDefaultsOnly) FText DisplayName;\n    UPROPERTY(EditDefaultsOnly) TSoftObjectPtr<UTexture2D> Icon;\n    UPROPERTY(EditDefaultsOnly) int32 MaxStackSize;\n    \n    virtual FPrimaryAssetId GetPrimaryAssetId() const override {\n        return FPrimaryAssetId(\"Item\", GetFName());\n    }\n};",
+      "tags": ["data asset", "datatable", "primary data asset", "asset manager", "config", "data driven"]
+    },
+    {
+      "id": "db_006",
+      "title": "Serialization Errors / Save File Corruption",
+      "symptoms": ["save corrupted", "deserialization failed", "version mismatch", "struct changed", "save migration"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Save files become unreadable after code changes (struct modifications, property renaming, class restructuring).",
+      "rootCause": "UE5's serialization uses property names and types to match saved data to struct fields. If you rename, remove, or change the type of a UPROPERTY, old saves can't deserialize that field. Adding new fields is safe (they get default values).",
+      "solution": [
+        "Add a version number to your save data and increment it with structural changes",
+        "Override Serialize() in your USaveGame to implement manual migration between versions",
+        "Use Core Redirects for renamed properties: PropertyRedirects in DefaultEngine.ini",
+        "NEVER remove fields from save structs - deprecate them and add new fields instead",
+        "Adding new UPROPERTY fields is safe - they initialize to default values when loading old saves",
+        "Test save/load compatibility by keeping a set of test saves from each version"
+      ],
+      "codeExample": "// Versioned save game\nUCLASS()\nclass UMySaveGame : public USaveGame {\n    GENERATED_BODY()\npublic:\n    UPROPERTY() int32 SaveVersion = 3;\n    UPROPERTY() float Health;          // v1\n    UPROPERTY() FVector Location;      // v1\n    UPROPERTY() TArray<FString> Items; // v2 - safe to add\n    UPROPERTY() int32 Currency;        // v3 - safe to add\n    \n    // Old saves: Items=empty, Currency=0 (defaults)\n};",
+      "tags": ["serialization", "corruption", "migration", "version", "compatibility", "save"]
+    },
+    {
+      "id": "db_007",
+      "title": "Struct/Enum Changes Breaking Existing Data",
+      "symptoms": ["enum mismatch", "struct incompatible", "data migration", "blueprint data loss", "enum value changed"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Modifying a USTRUCT or UENUM that is used in saved data, DataTables, or Blueprint defaults causes data loss or incorrect values.",
+      "rootCause": "UENUMs are serialized by name (safe to reorder) but removing/renaming values breaks existing data. USTRUCTs with renamed/removed fields lose those values on deserialization. Blueprint defaults reference property names directly.",
+      "solution": [
+        "For UENUMs: never remove values - mark them with UMETA(Hidden) instead. Renaming is safe if you add a Core Redirect",
+        "For USTRUCTs: add new fields (safe), never remove old ones from serialized structs",
+        "Use UMETA(DisplayName) to change how an enum value appears without renaming it",
+        "Set up Core Redirects for any renamed enum values or struct properties",
+        "When restructuring is unavoidable, write a migration commandlet or editor utility to convert old data"
+      ],
+      "tags": ["enum", "struct", "migration", "data loss", "core redirect", "blueprint defaults"]
+    },
+    {
+      "id": "db_008",
+      "title": "Async Save/Load for Large Data Sets",
+      "symptoms": ["save freezes game", "load hitch", "async save", "large save file", "save too slow"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Saving or loading large amounts of data causes a noticeable frame hitch or freeze.",
+      "rootCause": "UGameplayStatics::SaveGameToSlot/LoadGameFromSlot are synchronous and run on the game thread. Large save files (many actors, complex world state) can take hundreds of milliseconds to serialize/deserialize.",
+      "solution": [
+        "Use UGameplayStatics::AsyncSaveGameToSlot() and AsyncLoadGameFromSlot() for non-blocking saves",
+        "Show a save indicator UI while async save is in progress",
+        "For very large worlds, save in chunks: serialize regions independently",
+        "Compress save data if file size is the bottleneck",
+        "Autosave on a timer during non-critical gameplay moments (not during combat/cutscenes)",
+        "Profile save time: measure how long serialization takes and optimize the largest contributors"
+      ],
+      "codeExample": "// Async save\nUGameplayStatics::AsyncSaveGameToSlot(SaveGameInstance, TEXT(\"Slot1\"), 0,\n    FAsyncSaveGameToSlotDelegate::CreateUObject(this, &AMyGameMode::OnSaveComplete));\n\nvoid AMyGameMode::OnSaveComplete(const FString& SlotName, int32 UserIndex, bool bSuccess) {\n    if (bSuccess) {\n        // Hide save indicator\n    } else {\n        // Show error to player\n    }\n}\n\n// Async load\nUGameplayStatics::AsyncLoadGameFromSlot(TEXT(\"Slot1\"), 0,\n    FAsyncLoadGameFromSlotDelegate::CreateUObject(this, &AMyGameMode::OnLoadComplete));",
+      "tags": ["async", "save", "load", "performance", "large data", "hitch", "non-blocking"]
+    }
+  ]
+}

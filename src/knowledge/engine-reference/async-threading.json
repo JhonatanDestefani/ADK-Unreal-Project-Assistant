@@ -1,0 +1,54 @@
+{
+  "category": "async-threading",
+  "displayName": "Async & Multithreading",
+  "description": "UE5 async: AsyncTask, FRunnable, ParallelFor, GameThread safety, and async asset loading",
+  "entries": [
+    {
+      "id": "ref_async_001",
+      "title": "Async Tasks & Game Thread Safety",
+      "description": "UE5 is primarily single-threaded for gameplay (Game Thread). Async operations run heavy work on background threads, but modifying UObjects, actors, or components must happen on the Game Thread.",
+      "whatItIs": "UE5's async system lets you offload expensive operations (loading, computation, HTTP requests) to background threads while keeping the Game Thread free for responsive gameplay. AsyncTask() and Async() schedule work on thread pools, and AsyncTask(ENamedThreads::GameThread, ...) marshals results back safely.",
+      "whenToUse": [
+        "Loading large assets without blocking gameplay — async asset loading via FStreamableManager",
+        "Heavy computation that would cause frame hitches — pathfinding, AI decisions, procedural generation",
+        "Network/HTTP requests that should not block the Game Thread",
+        "File I/O (save/load) that takes more than a few milliseconds",
+        "ParallelFor: processing large arrays where each element is independent"
+      ],
+      "whenNotToUse": [
+        "For anything that modifies UObjects directly — must be done on the Game Thread",
+        "When the operation takes less than 1ms — the overhead of scheduling an async task is not worth it",
+        "When ordering matters and tasks depend on each other — use Futures or task chains, not fire-and-forget",
+        "For tick-based logic — just use Tick, which runs on the Game Thread already"
+      ],
+      "relatedClasses": [
+        "FRunnable",
+        "FRunnableThread",
+        "FAsyncTask",
+        "FNonAbandonableTask",
+        "FStreamableManager",
+        "UAssetManager",
+        "FGraphEventRef"
+      ],
+      "commonMistakes": [
+        "Modifying actors or components from a background thread — causes crashes or data corruption. Always marshal back to Game Thread.",
+        "Not checking IsInGameThread() before touching UObjects — silent corruption that crashes later",
+        "Creating async tasks that capture 'this' without checking if the object is still valid when the task completes",
+        "Using ParallelFor on a TArray while another thread is modifying it — no built-in thread safety on containers",
+        "Spawning too many async tasks without throttling — overwhelms the thread pool and causes worse performance than single-threaded"
+      ],
+      "keyPoints": [
+        "AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [](){ }): run work on a background thread",
+        "AsyncTask(ENamedThreads::GameThread, [](){ }): run work on the Game Thread (from a background thread)",
+        "Async(EAsyncExecution::ThreadPool, [](){ }): similar to AsyncTask, returns a TFuture<T>",
+        "ParallelFor(Count, [](int32 Index){ }): parallel loop over indices. Great for processing large arrays.",
+        "FStreamableManager: async asset loading. RequestAsyncLoad() with completion callback.",
+        "IsInGameThread(): check if current code is running on the Game Thread",
+        "FFunctionGraphTask::CreateAndDispatchWhenReady(): advanced task graph scheduling",
+        "Rule: READ from UObjects on any thread (carefully), WRITE only on Game Thread"
+      ],
+      "codeExample": "// Offload heavy computation to background thread\nvoid AMyActor::StartHeavyWork() {\n    // Capture values (not UObject pointers) for thread safety\n    TArray<FVector> PointsCopy = Points;\n    TWeakObjectPtr<AMyActor> WeakThis(this);\n    \n    AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [PointsCopy, WeakThis]() {\n        // Heavy computation on background thread\n        TArray<FVector> Results = ProcessPoints(PointsCopy);\n        \n        // Marshal result back to Game Thread\n        AsyncTask(ENamedThreads::GameThread, [WeakThis, Results = MoveTemp(Results)]() {\n            if (WeakThis.IsValid()) {\n                WeakThis->OnComputationComplete(Results);\n            }\n        });\n    });\n}\n\n// ParallelFor — process array in parallel\nTArray<FVector> Positions;\nPositions.SetNum(10000);\nParallelFor(Positions.Num(), [&Positions](int32 Index) {\n    // Each index runs on a different thread — no shared state!\n    Positions[Index] = ComputePosition(Index);\n});\n\n// Async asset loading\nFStreamableManager& Loader = UAssetManager::GetStreamableManager();\nTSoftObjectPtr<UStaticMesh> MeshRef = ...;\nLoader.RequestAsyncLoad(MeshRef.ToSoftObjectPath(),\n    FStreamableDelegate::CreateUObject(this, &AMyActor::OnMeshLoaded));",
+      "tags": ["async", "thread", "game thread", "parallel", "background", "async task", "loading", "frunnable"]
+    }
+  ]
+}

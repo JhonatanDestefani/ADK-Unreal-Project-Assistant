@@ -1,0 +1,59 @@
+{
+  "category": "patterns-inventory",
+  "displayName": "Patterns: Inventory & Items",
+  "description": "Architectural patterns for building inventory systems, item databases, and equipment in UE5",
+  "entries": [
+    {
+      "id": "pat_inv_001",
+      "title": "Pattern: Inventory System",
+      "description": "How to structure an inventory system using a component for storage, DataAssets for item definitions, and delegates for UI updates. Keeps item data separate from inventory logic.",
+      "whatItIs": "A clean architecture for inventory: items are defined as data (not actors), inventory is a component that holds references to that data, and the UI listens to inventory changes through delegates.",
+      "whenToUse": [
+        "RPGs, survival games, looter shooters, or any game where players collect and manage items",
+        "When items have shared properties (name, icon, weight, rarity) but different behaviors",
+        "When you need inventory on multiple actor types (player, storage chest, shop NPC)"
+      ],
+      "whenNotToUse": [
+        "Games with no item collection (pure platformers, racing games)",
+        "If you only have 2-3 fixed items — a simple array on the character is fine, no need for a full system"
+      ],
+      "keyPoints": [
+        "STEP 1 — Define items as UPrimaryDataAsset (or UDataAsset). Each item is a data-only asset: Name, Description, Icon, Weight, MaxStack, ItemType enum, and any type-specific data.",
+        "STEP 2 — Create an FInventorySlot struct: holds a reference to the item DataAsset + a stack count. This is what the inventory actually stores.",
+        "STEP 3 — Create a UInventoryComponent (inherits UActorComponent). It owns a TArray<FInventorySlot> and exposes functions: AddItem, RemoveItem, HasItem, GetItemCount.",
+        "STEP 4 — The InventoryComponent broadcasts delegates: OnInventoryChanged, OnItemAdded, OnItemRemoved. Never let external code modify the array directly.",
+        "STEP 5 — For the UI: create an inventory widget that binds to OnInventoryChanged. When the delegate fires, the widget rebuilds its grid/list. The widget reads from the component, never writes.",
+        "STEP 6 — For item usage/equipping: create a separate system that reads from the inventory and acts on item data. Don't put equip logic inside the inventory component.",
+        "STEP 7 — For persistence: serialize the inventory as an array of {ItemID, Count} pairs. Load item DataAssets by ID through the AssetManager."
+      ],
+      "commonMistakes": [
+        "Making items as Actors that exist in the world while in inventory — items in inventory should be data only, spawn an Actor only for world pickups",
+        "Storing item properties (damage, heal amount) in the inventory instead of on the DataAsset — the inventory only holds references and counts",
+        "Coupling the inventory to a specific Actor type — keep it as a generic component",
+        "Having the UI directly modify the inventory array — always go through AddItem/RemoveItem so delegates fire and validation happens",
+        "Not separating item definition from item instance — a 'Sword' DataAsset defines what a sword IS, an inventory slot says you HAVE one",
+        "Using DataTables for items when DataAssets would be cleaner — DataAssets are individual assets that can reference other assets (meshes, icons), DataTables are better for flat numeric data"
+      ],
+      "goodPractices": [
+        "Item definitions are DataAssets — designers create them in the editor, no code needed to add new items",
+        "InventoryComponent is generic — works on players, chests, NPCs, anything",
+        "All mutations go through the component's public API — never expose the internal array",
+        "Use an ItemType enum (Weapon, Consumable, Material, Quest) to drive UI display and usage logic",
+        "For multiplayer: the server owns the inventory, clients see a replicated copy",
+        "Keep the world pickup Actor (APickupActor) separate — it has a mesh and collision, and when interacted with, it calls InventoryComponent->AddItem and destroys itself"
+      ],
+      "relatedClasses": [
+        "UActorComponent",
+        "UPrimaryDataAsset",
+        "UDataAsset",
+        "UDataTable",
+        "FTableRowBase",
+        "UAssetManager",
+        "TArray",
+        "UUserWidget"
+      ],
+      "codeExample": "// ItemDataAsset.h — defines what an item IS\nUCLASS()\nclass UItemDataAsset : public UPrimaryDataAsset\n{\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    FName ItemID;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    FText DisplayName;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    FText Description;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    TSoftObjectPtr<UTexture2D> Icon;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    int32 MaxStackSize = 1;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    EItemType ItemType; // Weapon, Consumable, Material, Quest\n};\n\n// InventorySlot — what the inventory stores\nUSTRUCT(BlueprintType)\nstruct FInventorySlot\n{\n    GENERATED_BODY()\n\n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    UItemDataAsset* Item = nullptr;\n\n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    int32 Count = 0;\n};\n\n// InventoryComponent.h — manages the slots\nUCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))\nclass UInventoryComponent : public UActorComponent\n{\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = \"Inventory\")\n    int32 MaxSlots = 20;\n\n    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryChanged);\n\n    UPROPERTY(BlueprintAssignable)\n    FOnInventoryChanged OnInventoryChanged;\n\n    UFUNCTION(BlueprintCallable)\n    bool AddItem(UItemDataAsset* Item, int32 Amount = 1);\n\n    UFUNCTION(BlueprintCallable)\n    bool RemoveItem(UItemDataAsset* Item, int32 Amount = 1);\n\n    UFUNCTION(BlueprintCallable, BlueprintPure)\n    int32 GetItemCount(UItemDataAsset* Item) const;\n\nprotected:\n    UPROPERTY(Replicated)\n    TArray<FInventorySlot> Slots;\n};",
+      "tags": ["pattern", "inventory", "item", "data asset", "component", "architecture", "how to build", "structure", "loot", "pickup"]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "category": "damage-system",
+  "displayName": "Damage Framework",
+  "description": "UE5 built-in damage framework: ApplyDamage, TakeDamage, DamageTypes, radial damage, and point damage",
+  "entries": [
+    {
+      "id": "ref_dmg_001",
+      "title": "Damage Framework Overview",
+      "description": "UE5 has a built-in damage system centered around UGameplayStatics::ApplyDamage() and AActor::TakeDamage(). Any actor can deal and receive damage without custom code — just override TakeDamage or bind OnTakeAnyDamage.",
+      "whatItIs": "The UE5 Damage Framework is a built-in system where damage is applied via UGameplayStatics helper functions and received via AActor::TakeDamage() or damage delegates. It supports flat damage, directional point damage, and radial area damage, all with optional damage type classification.",
+      "whenToUse": [
+        "Any game that needs health/damage mechanics — shooters, RPGs, action games, tower defense",
+        "When you want a standardized damage pipeline that all actors can participate in without custom interfaces",
+        "When you need radial/explosion damage with falloff out of the box",
+        "Prototyping combat systems quickly before deciding if you need GAS (Gameplay Ability System)"
+      ],
+      "whenNotToUse": [
+        "When using the Gameplay Ability System (GAS) — GAS has its own damage pipeline via Gameplay Effects that replaces direct ApplyDamage calls",
+        "Highly complex damage calculations with stacking buffs, resistances, and status effects — consider GAS or a custom system",
+        "Non-combat games where no actors take damage",
+        "When you need networked damage prediction and rollback — the built-in system has no replication logic; you must add it"
+      ],
+      "relatedClasses": [
+        "UGameplayStatics",
+        "AActor",
+        "UDamageType",
+        "FDamageEvent",
+        "FPointDamageEvent",
+        "FRadialDamageEvent",
+        "AController",
+        "UGameplayAbility"
+      ],
+      "commonMistakes": [
+        "Forgetting to call Super::TakeDamage() when overriding — this breaks the delegate-based damage events (OnTakeAnyDamage, etc.)",
+        "Passing nullptr for InstigatorController — this makes it impossible to track kill credit or damage sources",
+        "Not setting up collision channels properly for radial damage — ApplyRadialDamage uses a trace and will be blocked by walls if you want it to be",
+        "Applying damage in the constructor or before BeginPlay — actors are not fully initialized yet",
+        "Using ApplyDamage on actors that do not override TakeDamage or bind OnTakeAnyDamage, then wondering why nothing happens — the default TakeDamage does nothing visible"
+      ],
+      "keyPoints": [
+        "ApplyDamage(Actor, Damage, InstigatorController, DamageCauser, DamageType): simple flat damage",
+        "ApplyPointDamage(): adds hit location and direction (for directional hit reactions)",
+        "ApplyRadialDamage(): area damage at a point, with falloff. For explosions, grenades.",
+        "ApplyRadialDamageWithFalloff(): radial damage with inner/outer radius and falloff curve",
+        "TakeDamage(): virtual function on AActor. Override for custom damage handling.",
+        "OnTakeAnyDamage: delegate on all Actors — bind without overriding TakeDamage",
+        "OnTakePointDamage: delegate for directional damage (includes hit info)",
+        "OnTakeRadialDamage: delegate for area damage",
+        "UDamageType: base class for damage categories. Subclass for Fire, Ice, Physical, etc.",
+        "InstigatorController: the player/AI that caused the damage (for kill credit)",
+        "DamageCauser: the actor that directly dealt the damage (projectile, trap, etc.)"
+      ],
+      "codeExample": "// Apply simple damage\nUGameplayStatics::ApplyDamage(\n    TargetActor,\n    50.f,                          // Damage amount\n    GetController(),                // Instigator (who shot)\n    this,                          // DamageCauser (the weapon/projectile)\n    UDamageType::StaticClass()     // Damage type\n);\n\n// Apply point damage (with direction)\nUGameplayStatics::ApplyPointDamage(\n    HitResult.GetActor(), 50.f, ShotDirection, HitResult,\n    GetController(), this, UFireDamageType::StaticClass()\n);\n\n// Apply radial damage (explosion)\nUGameplayStatics::ApplyRadialDamageWithFalloff(\n    GetWorld(), 100.f, 10.f,       // BaseDamage, MinDamage\n    GetActorLocation(), 200.f, 500.f, // Origin, InnerRadius, OuterRadius\n    1.f,                           // Falloff exponent\n    UDamageType::StaticClass(),\n    TArray<AActor*>(),             // Ignore actors\n    this, GetController()          // Causer, Instigator\n);\n\n// Receiving damage — delegate approach\nvoid AMyCharacter::BeginPlay() {\n    OnTakeAnyDamage.AddDynamic(this, &AMyCharacter::HandleDamage);\n}\n\nvoid AMyCharacter::HandleDamage(AActor* DamagedActor, float Damage,\n    const UDamageType* DamageType, AController* Instigator, AActor* DamageCauser) {\n    Health -= Damage;\n    if (Health <= 0.f) Die(Instigator);\n}\n\n// Override approach\nfloat AMyCharacter::TakeDamage(float Damage, FDamageEvent const& DamageEvent,\n    AController* Instigator, AActor* DamageCauser) {\n    float ActualDamage = Super::TakeDamage(Damage, DamageEvent, Instigator, DamageCauser);\n    Health -= ActualDamage;\n    return ActualDamage;\n}",
+      "tags": ["damage", "apply damage", "take damage", "radial", "point damage", "explosion", "health", "damage type"]
+    }
+  ]
+}

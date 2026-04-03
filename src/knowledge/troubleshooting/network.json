@@ -1,0 +1,168 @@
+{
+  "category": "network",
+  "displayName": "Network / API",
+  "description": "Replication, RPCs, multiplayer networking, HTTP requests, REST APIs, and online subsystems in UE5",
+  "entries": [
+    {
+      "id": "net_001",
+      "title": "Property Not Replicating / Client Not Seeing Changes",
+      "symptoms": ["not replicating", "client not updated", "replicated property not syncing", "variable not replicated", "doreplifetime"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A UPROPERTY marked as Replicated doesn't sync from server to clients. The server value changes but clients see the old value.",
+      "rootCause": "The property is marked with UPROPERTY(Replicated) but GetLifetimeReplicatedProps() doesn't include the DOREPLIFETIME macro for it. Both are required. Also, only the server can change replicated properties - client changes are overwritten.",
+      "solution": [
+        "Add UPROPERTY(Replicated) or UPROPERTY(ReplicatedUsing=OnRep_FunctionName) to the property",
+        "Implement GetLifetimeReplicatedProps() and add DOREPLIFETIME(ClassName, PropertyName)",
+        "Ensure the owning Actor has bReplicates = true (set in constructor)",
+        "Only modify replicated properties on the server (HasAuthority() == true)",
+        "For conditional replication, use DOREPLIFETIME_CONDITION with the appropriate condition",
+        "Check that the Actor is relevant to the client (net relevancy)"
+      ],
+      "codeExample": "// Header\nUPROPERTY(ReplicatedUsing = OnRep_Health)\nfloat Health;\n\nUFUNCTION()\nvoid OnRep_Health();\n\n// Source\nvoid AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const {\n    Super::GetLifetimeReplicatedProps(OutLifetimeProps);\n    DOREPLIFETIME(AMyCharacter, Health);\n}\n\n// Constructor\nAMyCharacter::AMyCharacter() {\n    bReplicates = true;\n}",
+      "tags": ["replication", "doreplifetime", "replicated", "onrep", "sync", "networking"]
+    },
+    {
+      "id": "net_002",
+      "title": "RPC Not Executing / Server/Client Function Not Called",
+      "symptoms": ["rpc not firing", "server function not called", "client rpc ignored", "multicast not working", "ufunction server"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A UFUNCTION marked as Server, Client, or NetMulticast RPC doesn't execute on the target machine.",
+      "rootCause": "Server RPCs must be called from the owning client's connection. Client RPCs must be called from the server on an actor owned by that client. The actor must also be replicated (bReplicates = true). Calling a Server RPC on an actor you don't own silently fails.",
+      "solution": [
+        "Server RPC: call from the owning client. The PlayerController owns the RPC channel",
+        "Client RPC: call from the server on the player's owned actor (PlayerController or its Pawn)",
+        "NetMulticast: call from the server - it executes on server AND all clients",
+        "Ensure the actor has bReplicates = true",
+        "Server RPCs need _Implementation suffix on the actual function body",
+        "Add Reliable or Unreliable: Reliable guarantees delivery, Unreliable may drop under load",
+        "Verify ownership chain: Pawn is owned by PlayerController which is owned by the connection"
+      ],
+      "codeExample": "// Header - Server RPC declaration\nUFUNCTION(Server, Reliable, WithValidation)\nvoid ServerFire(FVector Location, FRotator Direction);\n\n// Source - Implementation\nvoid AMyCharacter::ServerFire_Implementation(FVector Location, FRotator Direction) {\n    // Runs on server - spawn projectile, apply damage, etc.\n}\n\nbool AMyCharacter::ServerFire_Validate(FVector Location, FRotator Direction) {\n    // Anti-cheat validation\n    return true;\n}",
+      "tags": ["rpc", "server", "client", "multicast", "reliable", "unreliable", "ownership"]
+    },
+    {
+      "id": "net_003",
+      "title": "Client Prediction / Rubber Banding Issues",
+      "symptoms": ["rubber banding", "teleporting", "jittery movement", "client prediction", "network smoothing", "character movement correction"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Player characters teleport back, jitter, or 'rubber band' during multiplayer gameplay. Movement feels laggy or corrects visually.",
+      "rootCause": "The Character Movement Component uses client-side prediction. When the server's simulation disagrees with the client's prediction (due to latency, packet loss, or server corrections), the client is snapped to the server's position.",
+      "solution": [
+        "Tune CharacterMovementComponent network settings: NetworkSmoothingMode, NetworkMaxSmoothUpdateDistance",
+        "Increase server tick rate for more frequent updates",
+        "Enable client-side prediction smoothing with bSmoothClientPosition",
+        "For custom movement: implement FCharacterMovementComponent prediction correctly (SavedMoves)",
+        "Reduce server correction threshold: NetworkSimulatedSmoothLocationTime / RotationTime",
+        "For non-character actors, implement your own interpolation/extrapolation",
+        "Test with simulated latency: use Net PktLag, Net PktLoss console commands"
+      ],
+      "tags": ["prediction", "rubber banding", "smoothing", "character movement", "latency", "interpolation"]
+    },
+    {
+      "id": "net_004",
+      "title": "HTTP Request Fails / REST API Integration Issues",
+      "symptoms": ["http request failed", "fhttprequest error", "rest api not working", "json parse error", "ssl certificate error"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "FHttpRequest to external APIs fails, returns errors, or doesn't fire the callback.",
+      "rootCause": "Common issues: the HTTP module isn't included in Build.cs, SSL certificate verification fails for self-signed certs, the response callback captures a destroyed object, or the request is garbage collected before completion.",
+      "solution": [
+        "Add 'HTTP' and 'Json' to your Build.cs PublicDependencyModuleNames",
+        "Store the TSharedRef<IHttpRequest> as a member variable so it's not garbage collected",
+        "For SSL errors, set the request to ignore SSL with Request->SetVerb(TEXT('GET')) and proper headers",
+        "Check that the URL is accessible from the game's network (firewall, CORS doesn't apply to game clients)",
+        "Parse JSON responses with FJsonSerializer::Deserialize()",
+        "Bind the callback to a UObject member function (not a lambda capturing 'this') to avoid dangling references"
+      ],
+      "codeExample": "void AMyActor::MakeAPIRequest() {\n    TSharedRef<IHttpRequest> Request = FHttpModule::Get().CreateRequest();\n    Request->SetURL(TEXT(\"https://api.example.com/data\"));\n    Request->SetVerb(TEXT(\"GET\"));\n    Request->SetHeader(TEXT(\"Content-Type\"), TEXT(\"application/json\"));\n    Request->OnProcessRequestComplete().BindUObject(this, &AMyActor::OnResponseReceived);\n    Request->ProcessRequest();\n}\n\nvoid AMyActor::OnResponseReceived(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSuccess) {\n    if (bSuccess && Response.IsValid()) {\n        FString ResponseBody = Response->GetContentAsString();\n        // Parse JSON...\n    }\n}",
+      "tags": ["http", "rest", "api", "json", "ssl", "fhttprequest", "web"]
+    },
+    {
+      "id": "net_005",
+      "title": "Actor Not Spawning on Clients / Replicated Actor Missing",
+      "symptoms": ["actor not on client", "spawned actor missing", "replicated actor not visible", "client cant see spawned actor", "net relevant"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "An actor spawned on the server doesn't appear on clients even though it should be replicated.",
+      "rootCause": "The actor doesn't have bReplicates=true, or it's outside the client's net relevancy distance. Actors spawned on clients (not server) are local-only. The actor class may also not be loaded on the client.",
+      "solution": [
+        "Set bReplicates = true in the actor's constructor",
+        "Spawn actors ONLY on the server - they will automatically replicate to clients",
+        "Check net relevancy: increase NetCullDistanceSquared for actors that should be visible at long range",
+        "Set bAlwaysRelevant = true for actors that must exist on all clients regardless of distance",
+        "Ensure the actor class and its assets are available on the client (cooked content)",
+        "For dynamic spawn, ensure the server calls SpawnActor, not the client"
+      ],
+      "tags": ["spawn", "replicate", "client", "relevancy", "net cull distance", "bReplicates"]
+    },
+    {
+      "id": "net_006",
+      "title": "Online Subsystem / Session Management Issues",
+      "symptoms": ["online subsystem null", "cant create session", "find sessions empty", "steam subsystem", "EOS not working"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "The Online Subsystem (Steam, EOS, etc.) fails to initialize, create sessions, or find sessions.",
+      "rootCause": "The online subsystem plugin isn't enabled or configured correctly in DefaultEngine.ini. Steam requires the Steamworks SDK and a valid AppID. EOS requires proper product/sandbox/deployment IDs.",
+      "solution": [
+        "Enable the appropriate online subsystem plugin (OnlineSubsystemSteam, OnlineSubsystemEOS, etc.)",
+        "Configure DefaultEngine.ini with the correct subsystem settings",
+        "For Steam: create a steam_appid.txt with your AppID (or 480 for testing) in the Binaries folder",
+        "For EOS: set ProductId, SandboxId, DeploymentId, ClientId, ClientSecret in DefaultEngine.ini",
+        "Use IOnlineSubsystem::Get() to verify the subsystem is available before using it",
+        "Test with OnlineSubsystemNull for local testing without a backend"
+      ],
+      "codeExample": "// DefaultEngine.ini for Steam\n[OnlineSubsystem]\nDefaultPlatformService=Steam\n\n[OnlineSubsystemSteam]\nbEnabled=true\nSteamDevAppId=480  // Spacewar test app\n\n// Code to check subsystem\nIOnlineSubsystem* OSS = IOnlineSubsystem::Get();\nif (OSS) {\n    IOnlineSessionPtr SessionInterface = OSS->GetSessionInterface();\n    // Create/find sessions...\n}",
+      "tags": ["online subsystem", "steam", "eos", "session", "matchmaking", "multiplayer"]
+    },
+    {
+      "id": "net_007",
+      "title": "Network Authority / Role Confusion",
+      "symptoms": ["authority wrong", "role confusion", "server client mismatch", "hasauthority wrong", "local role remote role"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Code runs on the wrong machine (server vs client) or authority checks don't work as expected, leading to desync or duplicate logic.",
+      "rootCause": "Confusion between network roles: Authority (server), Autonomous Proxy (owning client), Simulated Proxy (other clients). HasAuthority() is true on the server (or for non-replicated actors). GetLocalRole()/GetRemoteRole() return the actor's role on the current machine.",
+      "solution": [
+        "Use HasAuthority() to check if you're on the server for this actor",
+        "Use IsLocallyControlled() to check if this is the owning player's machine",
+        "Server: HasAuthority()=true, runs game logic, spawns actors, applies damage",
+        "Owning client (Autonomous Proxy): sends input to server via RPCs, runs prediction",
+        "Other clients (Simulated Proxy): receive replicated state, run cosmetic effects only",
+        "Use switch on GetLocalRole() for role-specific behavior"
+      ],
+      "codeExample": "void AMyCharacter::TakeDamage(float Damage) {\n    if (HasAuthority()) {\n        // SERVER: apply actual damage\n        Health -= Damage;  // This replicates to clients\n        if (Health <= 0) Die();\n    }\n    // ALL MACHINES: play hit effect (cosmetic)\n    PlayHitAnimation();\n}",
+      "tags": ["authority", "role", "server", "client", "autonomous proxy", "simulated proxy"]
+    },
+    {
+      "id": "net_008",
+      "title": "WebSocket Connection Issues",
+      "symptoms": ["websocket not connecting", "websocket disconnect", "websocket module", "real-time communication", "persistent connection"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "WebSocket connections fail to establish, disconnect unexpectedly, or the WebSocket module isn't available.",
+      "rootCause": "The WebSockets module isn't added to Build.cs, the connection URL format is wrong, or the server requires specific subprotocols/headers that aren't set.",
+      "solution": [
+        "Add 'WebSockets' to your Build.cs PublicDependencyModuleNames",
+        "Use the correct URL scheme: ws:// for unencrypted, wss:// for encrypted",
+        "Set required headers and protocols before connecting",
+        "Implement OnConnected, OnConnectionError, OnClosed, OnMessage delegates",
+        "Handle reconnection logic - WebSockets don't auto-reconnect",
+        "Keep a reference to IWebSocket as a member variable to prevent GC"
+      ],
+      "tags": ["websocket", "real-time", "connection", "ws", "wss", "persistent"]
+    },
+    {
+      "id": "net_009",
+      "title": "Network Bandwidth / Too Much Replication Traffic",
+      "symptoms": ["bandwidth exceeded", "replication overhead", "net saturation", "too many replicated actors", "network profiler"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Multiplayer game uses too much bandwidth, causing lag, dropped packets, or server performance issues.",
+      "rootCause": "Too many actors replicating, properties updating too frequently, large RPCs, or not using net relevancy properly. Every replicated property change generates network traffic.",
+      "solution": [
+        "Use DOREPLIFETIME_CONDITION to conditionally replicate (COND_OwnerOnly, COND_SkipOwner, COND_InitialOnly)",
+        "Reduce NetUpdateFrequency on actors that don't need frequent updates",
+        "Set proper net relevancy distances - distant actors shouldn't replicate",
+        "Use Unreliable RPCs for non-critical updates (cosmetic effects, audio cues)",
+        "Quantize replicated values: use uint8 for health (0-255) instead of float",
+        "Use the Network Profiler tool: 'stat net' and Unreal Insights networking track",
+        "Batch RPC calls instead of sending many small RPCs"
+      ],
+      "tags": ["bandwidth", "replication", "net update frequency", "relevancy", "optimization", "traffic"]
+    }
+  ]
+}

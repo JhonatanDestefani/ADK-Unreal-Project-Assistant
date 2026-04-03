@@ -1,0 +1,144 @@
+{
+  "category": "ui",
+  "displayName": "UI / Widgets",
+  "description": "UMG widgets, Slate, HUD, menus, widget rendering, and UI layout issues in UE5",
+  "entries": [
+    {
+      "id": "ui_001",
+      "title": "Widget Not Showing / AddToViewport Not Working",
+      "symptoms": ["widget not visible", "addtoviewport not working", "hud not showing", "widget blank", "create widget fails"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "CreateWidget succeeds but the widget doesn't appear on screen after calling AddToViewport().",
+      "rootCause": "Common causes: widget has no visible content (empty canvas), widget visibility is set to Collapsed/Hidden in the designer, the owning Player Controller is not the local one, or the widget is added but has zero size due to missing layout (no anchors/alignment set).",
+      "solution": [
+        "Verify the widget Blueprint has visible content (not just an empty Canvas Panel)",
+        "Check that Visibility is set to 'Visible' or 'HitTestInvisible' (not Collapsed/Hidden)",
+        "Ensure CreateWidget uses the correct Player Controller (GetOwningPlayer or first local player)",
+        "Check anchors and alignment in the UMG designer - widgets with no anchors may have zero size",
+        "Use 'WidgetReflector' (Window > Developer Tools > Widget Reflector) to debug widget hierarchy",
+        "Verify ZOrder - another widget might be drawn on top. Use AddToViewport(ZOrder) to control layer"
+      ],
+      "codeExample": "// Correct way to create and show a widget\nvoid AMyHUD::BeginPlay() {\n    Super::BeginPlay();\n    if (MainWidgetClass) {\n        MainWidget = CreateWidget<UUserWidget>(GetOwningPlayerController(), MainWidgetClass);\n        if (MainWidget) {\n            MainWidget->AddToViewport(0);\n        }\n    }\n}",
+      "tags": ["widget", "addtoviewport", "visibility", "createwidget", "hud", "umg"]
+    },
+    {
+      "id": "ui_002",
+      "title": "Widget Not Scaling / Looking Wrong at Different Resolutions",
+      "symptoms": ["ui wrong size", "widget scaling", "dpi scaling", "resolution mismatch", "ui too small", "ui too big"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "UI widgets appear at the wrong size on different screen resolutions. Text or buttons are too small on 4K, or overflow the screen on lower resolutions.",
+      "rootCause": "The DPI Scaling Rule in Project Settings determines how widgets scale. If set incorrectly, widgets designed at one resolution won't adapt. Anchors and size boxes also affect how widgets respond to different screen sizes.",
+      "solution": [
+        "Set DPI Scaling in Project Settings > User Interface > DPI Scaling Rule to 'Shortest Side'",
+        "Design your UI at a reference resolution (e.g., 1920x1080) with DPI Scale curve configured",
+        "Use Anchors to pin widgets relative to screen edges - don't use absolute positions",
+        "Use Size Box widgets to constrain min/max sizes",
+        "Use Scale Box widget to auto-scale content within a container",
+        "Test with multiple resolutions using PIE resolution settings"
+      ],
+      "tags": ["dpi", "scaling", "resolution", "anchors", "size box", "scale box", "responsive"]
+    },
+    {
+      "id": "ui_003",
+      "title": "Widget Binding Not Updating / Text Not Refreshing",
+      "symptoms": ["binding not updating", "text not changing", "progress bar stuck", "ui not refreshing", "property binding slow"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Widget property bindings (text, progress bar value, visibility) don't update when the underlying data changes.",
+      "rootCause": "Property bindings in UMG poll every frame which is expensive and may appear not to work if the bound function returns stale data. Alternatively, the binding function may not be implemented correctly or the widget's tick is disabled.",
+      "solution": [
+        "Prefer event-driven updates over bindings: call SetText/SetPercent explicitly when data changes",
+        "If using bindings, ensure the bound function returns the current value (not a cached one)",
+        "Use delegates/events to push updates to the widget instead of polling",
+        "Check that the widget's Tick is enabled if you're relying on NativeTick for updates",
+        "For C++ widgets, override NativeTick or bind to model change delegates"
+      ],
+      "codeExample": "// BAD - polling binding (expensive, can be stale)\n// In UMG: Bind Text to 'GetHealthText' function\n\n// GOOD - event-driven update\nvoid UMyHealthWidget::SetHealth(float NewHealth) {\n    HealthText->SetText(FText::AsNumber(NewHealth));\n    HealthBar->SetPercent(NewHealth / MaxHealth);\n}\n\n// Called from the character when health changes\nvoid AMyCharacter::OnHealthChanged(float NewHealth) {\n    if (HealthWidget) HealthWidget->SetHealth(NewHealth);\n}",
+      "tags": ["binding", "property binding", "update", "text", "progress bar", "event driven"]
+    },
+    {
+      "id": "ui_004",
+      "title": "Widget Interaction / Click Events Not Firing",
+      "symptoms": ["button click not working", "cant click widget", "onclick not firing", "button unresponsive", "widget not interactive"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Buttons or interactive widgets don't respond to clicks. OnClicked event never fires.",
+      "rootCause": "Another widget (even invisible ones) is on top blocking hit tests. The input mode is set to Game Only. The button's IsFocusable is false, or the widget's visibility is set to a non-interactive mode.",
+      "solution": [
+        "Set input mode to FInputModeGameAndUI or FInputModeUIOnly when showing interactive UI",
+        "Ensure SetShowMouseCursor(true) is called on the PlayerController",
+        "Check widget hierarchy in Widget Reflector - an invisible overlay might block clicks",
+        "Set non-interactive parent widgets to 'SelfHitTestInvisible' visibility so they don't block children",
+        "Ensure the Button's 'Is Focusable' is true for keyboard/gamepad navigation",
+        "Check ZOrder - the widget might be behind another full-screen widget"
+      ],
+      "tags": ["button", "click", "hit test", "interactive", "focus", "input mode", "onclick"]
+    },
+    {
+      "id": "ui_005",
+      "title": "Widget Performance / Too Many Widgets Causing Lag",
+      "symptoms": ["ui lag", "widget performance", "slate overhead", "too many widgets", "invalidation box"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "UI causes frame rate drops, especially with complex widget hierarchies, many list items, or frequently updating widgets.",
+      "rootCause": "Slate (the underlying UI framework) recalculates layout and repaints every frame for visible widgets. Complex hierarchies, frequent text changes, and large numbers of visible widgets all contribute to CPU overhead.",
+      "solution": [
+        "Use Invalidation Box widget to cache widget rendering - only repaints when explicitly invalidated",
+        "Use Retainer Box for widgets that don't change every frame (renders to texture)",
+        "For long lists, use ListView widget instead of manually creating entries in a ScrollBox",
+        "Collapse/hide widgets instead of keeping them visible but transparent",
+        "Profile with 'stat slate' to see widget count and paint time",
+        "Reduce widget tree depth - flatten hierarchies where possible"
+      ],
+      "tags": ["performance", "slate", "invalidation box", "retainer box", "listview", "optimization"]
+    },
+    {
+      "id": "ui_006",
+      "title": "Widget Not Receiving Gamepad / Keyboard Navigation",
+      "symptoms": ["cant navigate menu with gamepad", "keyboard navigation not working", "tab navigation", "widget focus order", "gamepad ui"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "UI menus can't be navigated with keyboard or gamepad. Tab/arrow keys and D-pad don't move between buttons.",
+      "rootCause": "UMG widgets need explicit navigation rules for non-mouse input. Buttons must be focusable, and navigation between widgets must be configured either explicitly or via automatic navigation.",
+      "solution": [
+        "Set IsFocusable = true on all interactive widgets (buttons, checkboxes, etc.)",
+        "In the widget designer, set Navigation rules: Automatic, Explicit, or Custom for each widget",
+        "Call SetFocus() on the first button when the menu opens",
+        "Set the FInputModeUIOnly with the target widget to focus",
+        "For custom navigation, implement GetDesiredFocusWidget() in your widget class",
+        "Test with keyboard first (Tab + Enter), then gamepad"
+      ],
+      "tags": ["gamepad", "navigation", "focus", "keyboard", "tab", "dpad", "accessibility"]
+    },
+    {
+      "id": "ui_007",
+      "title": "3D Widget / World Space UI Not Rendering",
+      "symptoms": ["world space widget not showing", "3d widget invisible", "widget component blank", "world ui not rendering"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A Widget Component (3D world-space UI like health bars or nameplates) doesn't render in the game world.",
+      "rootCause": "Widget Component requires a valid widget class set, correct draw size, and proper rendering settings. Common issues: Widget Class not assigned, draw size is zero, widget is facing away from camera, or the render target resolution is too low.",
+      "solution": [
+        "Ensure Widget Class property is set on the Widget Component",
+        "Set Draw Size to appropriate values (e.g., 200x100)",
+        "For billboarding (always face camera), set Space to 'Screen' or implement custom rotation",
+        "Check that the widget component is not obscured by geometry (set render order if needed)",
+        "Increase the Widget Component's render target resolution if text appears blurry",
+        "For visibility at distance, set 'Max Interaction Distance' and check LOD settings"
+      ],
+      "tags": ["widget component", "world space", "3d widget", "health bar", "nameplate", "billboard"]
+    },
+    {
+      "id": "ui_008",
+      "title": "CommonUI Plugin Setup Issues",
+      "symptoms": ["commonui not working", "common activatable widget", "ui stack", "commonui input routing", "common game viewport client"],
+      "ueVersions": ["5.1", "5.2", "5.3", "5.4"],
+      "description": "The CommonUI plugin (used by Lyra and recommended for complex UI) is not routing input correctly or activatable widgets don't activate/deactivate as expected.",
+      "rootCause": "CommonUI requires specific setup: a CommonGameViewportClient subclass, proper widget activation/deactivation patterns, and its own input routing that overrides the standard UMG input flow.",
+      "solution": [
+        "Set GameViewportClientClass in DefaultEngine.ini to your CommonGameViewportClient subclass",
+        "Use UCommonActivatableWidget as base class for all menu panels",
+        "Push/pop widgets using ActivateWidget/DeactivateWidget instead of AddToViewport/RemoveFromViewport",
+        "Configure CommonUI Input Action Data Tables for gamepad back/confirm actions",
+        "Check that your widget implements GetDesiredInputConfig() correctly",
+        "Review Lyra's UI implementation as reference for CommonUI patterns"
+      ],
+      "tags": ["commonui", "activatable", "lyra", "input routing", "viewport client", "ui stack"]
+    }
+  ]
+}

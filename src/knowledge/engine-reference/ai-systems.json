@@ -1,0 +1,334 @@
+{
+  "category": "ai-systems",
+  "displayName": "AI Systems",
+  "description": "UE5 AI framework: Behavior Trees, Blackboards, EQS, AI Perception, Navigation, StateTree, and Mass Entity",
+  "entries": [
+    {
+      "id": "ref_ai_001",
+      "title": "AI Architecture Overview",
+      "description": "UE5's AI system is built around AIControllers that possess Pawns. The controller uses Behavior Trees or StateTrees for decision making, Blackboards for memory, EQS for spatial queries, and AI Perception for sensing.",
+      "whatItIs": "The top-level architecture for AI in Unreal Engine 5, where an AAIController possesses a Pawn and orchestrates decision-making, sensing, and navigation subsystems to produce intelligent agent behavior.",
+      "whenToUse": [
+        "When building any NPC or enemy that needs autonomous behavior",
+        "When you need a structured framework for AI decision-making, sensing, and movement",
+        "When designing AI agents that must perceive and react to the game world"
+      ],
+      "whenNotToUse": [
+        "For simple scripted sequences that don't need decision-making — use Level Sequences or Timelines instead",
+        "For player-controlled characters — PlayerController handles that, not AIController",
+        "For purely physics-driven objects that don't need intelligent behavior"
+      ],
+      "relatedClasses": [
+        "AAIController",
+        "APawn",
+        "ACharacter",
+        "UBehaviorTreeComponent",
+        "UBlackboardComponent",
+        "UAIPerceptionComponent",
+        "UPathFollowingComponent",
+        "UBrainComponent"
+      ],
+      "commonMistakes": [
+        "Forgetting to call PossessedBy or spawning a Pawn without an AIController, so the BT never runs",
+        "Putting AI logic in the Pawn instead of the AIController, making it hard to swap behaviors",
+        "Not setting the Blackboard asset on the AIController before running the Behavior Tree",
+        "Mixing up PlayerController and AIController responsibilities in multiplayer setups",
+        "Trying to run AI systems on actors that are not possessed by an AIController"
+      ],
+      "keyPoints": [
+        "AAIController: controls an AI Pawn. Manages the BT, Blackboard, Perception, and pathfinding.",
+        "Behavior Tree: hierarchical decision tree. Evaluates top-down, left-to-right.",
+        "Blackboard: key-value memory shared between BT, EQS, and code.",
+        "EQS (Environment Query System): spatial queries (find cover, find patrol point).",
+        "AI Perception: sense system (sight, hearing, damage, touch, custom).",
+        "Navigation System: pathfinding via NavMesh (Recast).",
+        "StateTree: UE5's newer alternative to Behavior Trees. Hierarchical state machine.",
+        "Smart Objects: interaction points in the world that AI can discover and use."
+      ],
+      "tags": ["ai", "overview", "aicontroller", "behavior tree", "blackboard", "eqs", "perception"]
+    },
+    {
+      "id": "ref_ai_002",
+      "title": "Behavior Trees In-Depth",
+      "description": "Behavior Trees are the primary AI decision-making system. They evaluate nodes from root, left to right, executing tasks and checking conditions through composites, decorators, tasks, and services.",
+      "whatItIs": "A hierarchical, node-based decision-making system where an AI agent evaluates composites, decorators, tasks, and services from the root node downward to determine and execute behavior each frame.",
+      "whenToUse": [
+        "When AI needs complex, multi-step decision logic with prioritized branches",
+        "When you need reactive aborts — AI should interrupt what it's doing when conditions change",
+        "When building combat AI, patrol behavior, or any NPC with multiple behavioral states",
+        "When you want a well-established, mature system with extensive community resources"
+      ],
+      "whenNotToUse": [
+        "For very simple AI that only needs one or two states — a simple state machine or even a Tick function may suffice",
+        "When you want a data-driven, struct-based approach — consider StateTree instead",
+        "For non-AI logic like animation state machines or UI flow control — StateTree is more appropriate"
+      ],
+      "relatedClasses": [
+        "UBehaviorTree",
+        "UBehaviorTreeComponent",
+        "UBTTaskNode",
+        "UBTDecorator",
+        "UBTService",
+        "UBTCompositeNode",
+        "UBTTask_MoveTo",
+        "UBTTask_Wait",
+        "UBTTask_RunEQSQuery",
+        "UBlackboardComponent"
+      ],
+      "commonMistakes": [
+        "Not returning EBTNodeResult::InProgress for latent tasks and then never calling FinishLatentTask",
+        "Forgetting to call FinishLatentTask when a latent task completes, causing the tree to hang",
+        "Misunderstanding abort types — using 'Both' when 'Self' or 'Lower Priority' would be correct",
+        "Creating overly deep trees instead of using Sub-Trees or RunBehaviorDynamic for modularity",
+        "Placing decorators on the wrong node — they should be on the composite or task they guard",
+        "Doing heavy computation every tick in a Service instead of using appropriate tick intervals"
+      ],
+      "keyPoints": [
+        "Composite nodes: Selector (try children until one succeeds), Sequence (run all children, fail if any fails), Simple Parallel (run task + background tree)",
+        "Task nodes: leaf nodes that do work. Return Succeeded, Failed, or InProgress (latent).",
+        "Decorator nodes: conditions on composites/tasks. Can abort the subtree if condition changes.",
+        "Service nodes: run periodically on a composite. Good for updating Blackboard values.",
+        "Abort types: None, Self (abort this branch), Lower Priority (abort branches to the right), Both.",
+        "Observer aborts: decorators can watch Blackboard keys and abort when values change.",
+        "Built-in tasks: MoveTo, Wait, RunEQSQuery, PlayAnimation, RunBehaviorDynamic."
+      ],
+      "codeExample": "// Custom BT Task\nUCLASS()\nclass UBTTask_FindCover : public UBTTaskNode {\n    GENERATED_BODY()\npublic:\n    virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override {\n        AAIController* AI = OwnerComp.GetAIOwner();\n        // Find cover logic...\n        \n        if (FoundCover) {\n            OwnerComp.GetBlackboardComponent()->SetValueAsVector(\"CoverLocation\", Location);\n            return EBTNodeResult::Succeeded;\n        }\n        return EBTNodeResult::Failed;\n    }\n};",
+      "tags": ["behavior tree", "composite", "selector", "sequence", "task", "decorator", "service", "abort"]
+    },
+    {
+      "id": "ref_ai_003",
+      "title": "Blackboard System",
+      "description": "The Blackboard is a shared memory board that BT nodes, EQS queries, services, and code can read/write. It stores key-value pairs of specific types.",
+      "whatItIs": "A key-value data store that acts as the shared memory for an AI agent, allowing Behavior Tree nodes, EQS queries, services, and gameplay code to read and write typed values like vectors, objects, and floats.",
+      "whenToUse": [
+        "When AI needs to store and share data between different BT nodes, services, and EQS queries",
+        "When decorators need to observe changing values and trigger aborts reactively",
+        "When you need a centralized place for an AI agent's knowledge (current target, patrol point, health threshold, etc.)"
+      ],
+      "whenNotToUse": [
+        "For storing persistent data that should survive across AI respawns — use a separate data component or subsystem",
+        "For communication between multiple AI agents — use a shared manager or team-level data store instead",
+        "For data that only one node ever uses — a local variable in the task may be simpler"
+      ],
+      "relatedClasses": [
+        "UBlackboardData",
+        "UBlackboardComponent",
+        "UBlackboardKeyType",
+        "UBlackboardKeyType_Object",
+        "UBlackboardKeyType_Vector",
+        "UBlackboardKeyType_Float",
+        "UBlackboardKeyType_Bool",
+        "UBTDecorator_Blackboard",
+        "FBlackboardKeySelector"
+      ],
+      "commonMistakes": [
+        "Using the wrong getter/setter type (e.g., GetValueAsFloat on an Int key) which silently returns zero",
+        "Forgetting to set the Blackboard asset on the AIController before running the BT, resulting in null Blackboard",
+        "Not using ClearValue() to reset keys — setting to zero/nullptr is not the same and won't trigger observer notifications the same way",
+        "Creating too many Blackboard keys instead of using a few well-designed ones with clear purposes",
+        "Not using Blackboard key selectors (FBlackboardKeySelector) in custom tasks, which prevents designers from picking keys in the editor"
+      ],
+      "keyPoints": [
+        "Key types: Bool, Int, Float, String, Name, Vector, Rotator, Enum, Object (UObject/AActor), Class",
+        "The Blackboard Asset defines available keys. It's linked to a Behavior Tree.",
+        "Access via UBlackboardComponent: GetValueAsFloat(), SetValueAsObject(), etc.",
+        "Decorators can observe Blackboard keys: when a key changes, the decorator re-evaluates and may abort.",
+        "Object keys with Base Class filter: set AActor as base class for actor references.",
+        "Blackboard supports inheritance: child Blackboard assets can extend parent ones.",
+        "Clear a key with ClearValue() — decorators see this as a change."
+      ],
+      "tags": ["blackboard", "key", "value", "memory", "observer", "behavior tree"]
+    },
+    {
+      "id": "ref_ai_004",
+      "title": "EQS (Environment Query System)",
+      "description": "EQS generates and scores spatial candidates to answer questions like 'where is the best cover position?' or 'which enemy should I target?'",
+      "whatItIs": "A query system that generates a set of spatial candidates (points or actors), scores them with weighted tests, and returns the best result — used for spatial reasoning like finding cover, flanking positions, or optimal targets.",
+      "whenToUse": [
+        "When AI needs to evaluate multiple spatial options and pick the best one (cover, patrol points, attack positions)",
+        "When choosing among multiple potential targets based on distance, line of sight, or other spatial criteria",
+        "When you need designer-tunable spatial queries without writing custom C++ search logic",
+        "When AI needs to find locations dynamically rather than relying on pre-placed waypoints"
+      ],
+      "whenNotToUse": [
+        "For simple distance checks to a single known target — just compute the distance directly",
+        "When performance is critical and you only need the nearest actor — a simple overlap or trace is cheaper",
+        "For non-spatial decisions like choosing dialogue options or picking ability loadouts"
+      ],
+      "relatedClasses": [
+        "UEnvQuery",
+        "UEnvQueryManager",
+        "UEnvQueryGenerator",
+        "UEnvQueryGenerator_SimpleGrid",
+        "UEnvQueryGenerator_ActorsOfClass",
+        "UEnvQueryTest",
+        "UEnvQueryTest_Distance",
+        "UEnvQueryTest_Trace",
+        "UEnvQueryContext",
+        "UEnvQueryContext_Querier",
+        "UBTTask_RunEQSQuery",
+        "AEQSTestingPawn"
+      ],
+      "commonMistakes": [
+        "Using too fine a grid spacing on SimpleGrid generator, creating thousands of items and tanking performance",
+        "Not clamping test scores properly, causing one test to dominate all others in the final score",
+        "Forgetting to add a pathfinding test, so the AI picks locations it cannot actually reach",
+        "Not using the EQS Testing Pawn to visualize and debug queries during development",
+        "Running expensive EQS queries every tick instead of caching results or using a Service with a reasonable interval"
+      ],
+      "keyPoints": [
+        "Generator: creates items (points on grid, actors of type, points on circle/ring, etc.)",
+        "Test: scores or filters items (distance, pathfinding, trace, dot product, overlap)",
+        "Context: reference point for tests (Querier=the AI, Target=Blackboard actor, custom contexts)",
+        "Run from BT using RunEQSQuery task node. Result goes to Blackboard.",
+        "Can also run from C++ via UEnvQueryManager::RunQuery()",
+        "EQS Testing Pawn: place in level to visualize query results in the editor",
+        "Multiple generators combine results. Tests apply to all items."
+      ],
+      "tags": ["eqs", "environment query", "generator", "test", "context", "spatial", "cover"]
+    },
+    {
+      "id": "ref_ai_005",
+      "title": "AI Perception System",
+      "description": "AI Perception provides a modular sensing system. AI controllers use it to detect other actors through configurable senses (sight, hearing, damage, etc.).",
+      "whatItIs": "A modular, component-based sensing framework that lets AI agents detect other actors through configurable senses like sight, hearing, and damage, providing stimulus events that drive AI decision-making.",
+      "whenToUse": [
+        "When AI needs to detect the player or other actors through line of sight, sound, or other senses",
+        "When you want a unified sensing system that integrates with Behavior Trees via Blackboard",
+        "When AI should lose track of targets that leave sight range or go behind cover",
+        "When you need team-based detection (enemies vs. friendlies vs. neutrals)"
+      ],
+      "whenNotToUse": [
+        "For simple trigger-volume-based detection — a Box/Sphere Trigger with overlap events is simpler",
+        "When you only need to know about one specific actor at a known location — a direct distance check is cheaper",
+        "For environmental hazard detection that isn't actor-based (e.g., checking if standing in fire)"
+      ],
+      "relatedClasses": [
+        "UAIPerceptionComponent",
+        "UAIPerceptionStimuliSourceComponent",
+        "UAISenseConfig",
+        "UAISenseConfig_Sight",
+        "UAISenseConfig_Hearing",
+        "UAISenseConfig_Damage",
+        "UAISenseConfig_Touch",
+        "UAISenseConfig_Team",
+        "UAIPerceptionSystem",
+        "IGenericTeamAgentInterface",
+        "FGenericTeamId",
+        "FAIStimulus"
+      ],
+      "commonMistakes": [
+        "Adding UAIPerceptionComponent to the Pawn instead of the AIController — it must be on the controller",
+        "Forgetting to add UAIPerceptionStimuliSourceComponent to detectable actors, so the AI never senses them",
+        "Not implementing IGenericTeamAgentInterface, so affiliation filtering (enemy/friendly/neutral) doesn't work",
+        "Confusing SightRadius and LoseSightRadius — LoseSightRadius must be greater than SightRadius for proper hysteresis",
+        "Not binding to OnTargetPerceptionUpdated and then wondering why the AI doesn't react to sensing events"
+      ],
+      "keyPoints": [
+        "UAIPerceptionComponent: add to AIController (not the Pawn). Configure senses on it.",
+        "UAIPerceptionStimuliSourceComponent: add to actors that should be detectable.",
+        "Senses: Sight (line-of-sight + cone), Hearing (radius), Damage (when damaged), Touch, Team, Custom.",
+        "Sight config: SightRadius, LoseSightRadius (hysteresis), PeripheralVisionAngleDegrees, AutoSuccessRange.",
+        "Affiliation: bDetectEnemies, bDetectNeutrals, bDetectFriendlies. Requires IGenericTeamAgentInterface.",
+        "OnTargetPerceptionUpdated: delegate fired when perception state changes (sensed/lost).",
+        "Debug: press apostrophe (') in PIE for AI debug view with perception visualization."
+      ],
+      "tags": ["perception", "sight", "hearing", "sense", "detection", "stimuli", "affiliation"]
+    },
+    {
+      "id": "ref_ai_006",
+      "title": "Navigation System (NavMesh)",
+      "description": "The Navigation System provides pathfinding for AI using a navigation mesh (NavMesh) generated from level geometry. UE5 uses Recast/Detour for navmesh generation and pathfinding.",
+      "whatItIs": "The pathfinding subsystem that generates a navigation mesh from level geometry using Recast/Detour, enabling AI agents to find walkable paths, avoid obstacles, and navigate the game world.",
+      "whenToUse": [
+        "When AI agents need to walk, run, or move along valid paths in the game world",
+        "When you need obstacle avoidance and dynamic path updates as the environment changes",
+        "When AI must navigate around complex geometry, up ramps, through doorways, etc.",
+        "When you need multiple navigation profiles for differently-sized agents (human vs. large creature)"
+      ],
+      "whenNotToUse": [
+        "For flying AI in open space with no ground constraints — consider a custom 3D pathfinding solution or spline-based movement",
+        "For rail-based or on-track movement — use Spline Components instead",
+        "For very small or tightly confined levels where direct movement toward a point suffices"
+      ],
+      "relatedClasses": [
+        "UNavigationSystemV1",
+        "ANavMeshBoundsVolume",
+        "ARecastNavMesh",
+        "UPathFollowingComponent",
+        "UNavArea",
+        "UNavArea_Obstacle",
+        "UNavArea_Null",
+        "ANavLinkProxy",
+        "UNavModifierComponent",
+        "INavAgentInterface",
+        "FNavigationPath",
+        "UNavigationQueryFilter"
+      ],
+      "commonMistakes": [
+        "Forgetting to place a NavMesh Bounds Volume, so no navmesh is generated and pathfinding silently fails",
+        "Not pressing 'P' to visualize navmesh during development, then debugging pathfinding issues blindly",
+        "Setting Agent Radius too small, causing AI to clip through walls or get stuck on edges",
+        "Not using Nav Link Proxies for jumps/drops, so AI gets stuck at ledges or can't take shortcuts",
+        "Forgetting to enable runtime navmesh generation for dynamic obstacles in Project Settings",
+        "Using MoveToLocation with a point that is off the navmesh, causing the move request to fail silently"
+      ],
+      "keyPoints": [
+        "NavMesh Bounds Volume: defines where navmesh is generated. Must cover your entire playable area.",
+        "Press 'P' in viewport to visualize navmesh (green = walkable).",
+        "Agent properties: Radius, Height, MaxStepHeight, MaxSlopAngle. Configure in Project Settings > Navigation System.",
+        "Multiple agents: different sized agents can have different navmeshes (human vs vehicle).",
+        "Dynamic obstacles: actors with Nav Modifier or Dynamic Obstacle components update navmesh at runtime.",
+        "Nav Links: custom connections for jumps, ladders, teleporters.",
+        "Path following: AIController->MoveToLocation() or MoveToActor(). Uses UPathFollowingComponent."
+      ],
+      "tags": ["navigation", "navmesh", "pathfinding", "recast", "agent", "nav link", "dynamic"]
+    },
+    {
+      "id": "ref_ai_007",
+      "title": "StateTree (UE5.2+)",
+      "description": "StateTree is UE5's newer alternative to Behavior Trees. It combines hierarchical state machines with data-driven tasks, offering a more visual and flexible approach to AI logic.",
+      "whatItIs": "A hierarchical state machine system introduced in UE5 that uses data-driven struct-based tasks and condition-based transitions, serving as a modern alternative to Behavior Trees for AI, animation, and general game logic.",
+      "whenToUse": [
+        "When building new AI in UE5.2+ and you prefer a state machine mental model over a tree-based one",
+        "When you want a unified system for AI, animation, and game logic (not limited to AI use cases)",
+        "When you want data-driven, struct-based tasks that are lighter weight than UObject-based BT tasks",
+        "When transitioning from traditional state machines and want hierarchical sub-state support"
+      ],
+      "whenNotToUse": [
+        "When your team is already experienced with Behavior Trees and the project is well underway",
+        "When you need mature community resources, tutorials, and plugin support — BTs have a larger ecosystem",
+        "When targeting UE versions older than 5.2 where StateTree is not available or not stable"
+      ],
+      "relatedClasses": [
+        "UStateTree",
+        "UStateTreeComponent",
+        "FStateTreeTaskBase",
+        "FStateTreeEvaluatorBase",
+        "FStateTreeConditionBase",
+        "FStateTreeTransitionResult",
+        "UStateTreeSchema",
+        "UStateTreeAIComponentSchema",
+        "FStateTreeExecutionContext",
+        "FStateTreeInstanceData"
+      ],
+      "commonMistakes": [
+        "Trying to use StateTree like a Behavior Tree — it's a state machine, so think in terms of states and transitions, not tree traversal",
+        "Not defining clear transition conditions, causing the AI to get stuck in a state or thrash between states",
+        "Forgetting that StateTree tasks are structs (not UObjects), so they cannot use UPROPERTY replication or garbage collection",
+        "Overcomplicating the hierarchy with too many nested sub-states when a flatter structure would be clearer",
+        "Not selecting the correct Schema type (AI, Actor Component, or Custom) when creating a new StateTree asset"
+      ],
+      "keyPoints": [
+        "Hierarchical state machine: states can contain sub-states.",
+        "Data-driven: states reference task structs instead of UObject-based task classes.",
+        "Transitions: condition-based with priorities. Evaluated in order, first match wins.",
+        "Tasks: FStateTreeTaskBase structs with EnterState, ExitState, Tick functions.",
+        "Evaluators: run every frame and provide computed values to the tree.",
+        "Can be used for AI, animation, and general game logic (not just AI).",
+        "Schema types: AI (with Blackboard integration), Actor Component, Custom."
+      ],
+      "tags": ["statetree", "state machine", "hierarchical", "task", "transition", "evaluator"]
+    }
+  ]
+}

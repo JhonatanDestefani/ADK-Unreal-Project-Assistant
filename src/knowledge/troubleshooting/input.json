@@ -1,0 +1,141 @@
+{
+  "category": "input",
+  "displayName": "Input / Controls",
+  "description": "Input handling, Enhanced Input System, key bindings, controller support, and input conflicts in UE5",
+  "entries": [
+    {
+      "id": "input_001",
+      "title": "Enhanced Input Not Responding / Input Actions Not Firing",
+      "symptoms": ["input not working", "enhanced input not firing", "input action no response", "key press ignored", "input mapping context"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Input Actions defined in the Enhanced Input System do not trigger. Pressing keys does nothing.",
+      "rootCause": "The Input Mapping Context (IMC) is not added to the player's Enhanced Input Local Player Subsystem, or the Input Actions are not bound to the correct mapping context. The Enhanced Input System requires explicit mapping context registration at runtime.",
+      "solution": [
+        "Ensure you add the Input Mapping Context in BeginPlay via the subsystem",
+        "Check that the Input Action asset is correctly mapped in the Input Mapping Context asset",
+        "Verify the Player Controller has the Enhanced Input Component (auto-created if using APlayerController)",
+        "Make sure the DefaultMappingContexts in Project Settings includes your IMC, or add it manually",
+        "Check priority: higher priority contexts consume input before lower ones"
+      ],
+      "codeExample": "void AMyPlayerController::BeginPlay() {\n    Super::BeginPlay();\n    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = \n        ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer())) {\n        Subsystem->AddMappingContext(DefaultMappingContext, 0);\n    }\n}\n\nvoid AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) {\n    if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {\n        EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMyCharacter::Move);\n    }\n}",
+      "tags": ["enhanced input", "mapping context", "input action", "binding", "subsystem"]
+    },
+    {
+      "id": "input_002",
+      "title": "Input Consumed by UI Widget / Focus Issue",
+      "symptoms": ["input stolen by ui", "keyboard input goes to widget", "cant move after opening menu", "widget consuming input", "input mode"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "After opening a UI widget (menu, HUD element), keyboard/gamepad input stops reaching the player character. The widget is capturing all input.",
+      "rootCause": "The input mode is set to UI Only when the widget is shown, or the widget has keyboard focus and consumes input events. SetInputMode() changes how input is routed between game and UI.",
+      "solution": [
+        "Use SetInputMode(FInputModeGameAndUI()) to allow both game and UI input simultaneously",
+        "After closing a menu, call SetInputMode(FInputModeGameOnly()) to return input to the game",
+        "Set bIsFocusable = false on widgets that shouldn't steal focus",
+        "Check widget's Visibility - use HitTestInvisible or SelfHitTestInvisible instead of Visible if you don't need click interaction",
+        "For gamepad, set the widget's navigation rules explicitly"
+      ],
+      "codeExample": "// Opening a menu - allow both game and UI input\nvoid AMyPlayerController::OpenMenu() {\n    MenuWidget->SetVisibility(ESlateVisibility::Visible);\n    FInputModeGameAndUI InputMode;\n    InputMode.SetWidgetToFocus(MenuWidget->TakeWidget());\n    InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);\n    SetInputMode(InputMode);\n    SetShowMouseCursor(true);\n}\n\n// Closing - restore game input\nvoid AMyPlayerController::CloseMenu() {\n    MenuWidget->SetVisibility(ESlateVisibility::Collapsed);\n    SetInputMode(FInputModeGameOnly());\n    SetShowMouseCursor(false);\n}",
+      "tags": ["input mode", "widget", "focus", "ui", "mouse cursor", "game and ui"]
+    },
+    {
+      "id": "input_003",
+      "title": "Gamepad / Controller Not Detected",
+      "symptoms": ["controller not working", "gamepad not detected", "xbox controller no input", "ps5 controller unreal", "xinput"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A connected gamepad or controller is not recognized by the game, or input from it is not being processed.",
+      "rootCause": "Missing input device plugin, wrong platform input settings, or the Enhanced Input System doesn't have gamepad bindings in the Input Mapping Context. Steam Input can also intercept controller input before it reaches the game.",
+      "solution": [
+        "Ensure your Input Mapping Context has gamepad bindings (Gamepad Left Thumbstick, Face Buttons, etc.)",
+        "Check Project Settings > Input > enable 'Use Enhanced Input' and ensure controller plugins are enabled",
+        "For PS5 controllers: enable the 'DualShock/DualSense' plugin in Project Settings > Plugins",
+        "If testing through Steam, disable Steam Input for your game or it will remap the controller",
+        "Test with 'ShowDebug INPUT' console command to see what the engine detects",
+        "On Windows, ensure XInput-compatible drivers are installed"
+      ],
+      "tags": ["gamepad", "controller", "xbox", "playstation", "xinput", "dualsense"]
+    },
+    {
+      "id": "input_004",
+      "title": "Mouse Cursor Stuck / Not Showing in Menu",
+      "symptoms": ["cursor not visible", "mouse cursor hidden", "cant click ui", "cursor stuck center", "mouse locked"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "The mouse cursor doesn't appear when opening a UI menu, or it stays locked to the center of the screen making it impossible to interact with widgets.",
+      "rootCause": "The Player Controller's bShowMouseCursor is false, or the input mode is still set to Game Only which locks the mouse to the viewport center. The cursor visibility and input mode are separate settings that both need to be configured.",
+      "solution": [
+        "Call SetShowMouseCursor(true) on the Player Controller when showing UI",
+        "Set input mode with SetInputMode(FInputModeUIOnly()) or FInputModeGameAndUI()",
+        "For GameAndUI mode, set SetLockMouseToViewportBehavior appropriately",
+        "Make sure to reset both cursor and input mode when closing the menu",
+        "In Blueprint: use 'Set Show Mouse Cursor' and 'Set Input Mode UI Only' nodes"
+      ],
+      "tags": ["mouse", "cursor", "input mode", "viewport", "lock", "show cursor"]
+    },
+    {
+      "id": "input_005",
+      "title": "Input Not Working in Multiplayer / Wrong Player Gets Input",
+      "symptoms": ["multiplayer input", "wrong player input", "input on server", "local player input", "authority input"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "In multiplayer, input is not processed correctly - either the wrong player receives input, input doesn't work on clients, or input bindings only work for Player 0.",
+      "rootCause": "Input bindings are set up on the server-side Pawn instead of the locally-controlled one. In multiplayer, only the local PlayerController should process input. Server doesn't have input devices.",
+      "solution": [
+        "Check IsLocallyControlled() before processing input in the Pawn",
+        "Bind input only for the local player: guard with if (!IsLocalController()) return in the controller",
+        "Use Server RPCs (UFUNCTION(Server)) to send validated input to the server",
+        "Never read input directly on the server - always go Client Input -> Server RPC -> Server Validation -> Execution",
+        "For local split-screen, each player has their own controller and input bindings"
+      ],
+      "codeExample": "void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PIC) {\n    // This only runs for the locally controlled character\n    Super::SetupPlayerInputComponent(PIC);\n    // Bind input here - safe because SetupPlayerInputComponent\n    // is only called on the locally controlled pawn\n}\n\n// Send input result to server for validation\nUFUNCTION(Server, Reliable)\nvoid ServerMove(FVector Direction);",
+      "tags": ["multiplayer", "local player", "server", "rpc", "authority", "input replication"]
+    },
+    {
+      "id": "input_006",
+      "title": "Enhanced Input Triggers Not Behaving as Expected",
+      "symptoms": ["input trigger wrong", "hold not working", "tap vs hold", "input trigger started completed", "trigger event"],
+      "ueVersions": ["5.1", "5.2", "5.3", "5.4"],
+      "description": "Enhanced Input triggers (Tap, Hold, Press/Release) fire at unexpected times or don't fire at all. The trigger event type (Started, Triggered, Completed, Canceled) is confusing.",
+      "rootCause": "Enhanced Input trigger events have specific semantics: 'Started' fires on first activation, 'Triggered' fires continuously while active, 'Completed' fires when the trigger condition ends successfully, 'Canceled' fires if interrupted. Adding the wrong trigger type to an action changes when these events fire.",
+      "solution": [
+        "For simple press: bind to ETriggerEvent::Triggered (fires every frame while held) or Started (fires once)",
+        "For hold: add a UInputTriggerHold modifier to the action, bind to Triggered (fires after hold time) and Completed (fires on release after successful hold)",
+        "For tap: add UInputTriggerTap, bind to Triggered (fires on quick release)",
+        "If no trigger is set on the action, it defaults to 'down' behavior",
+        "Use 'ShowDebug EnhancedInput' to see real-time trigger states"
+      ],
+      "tags": ["trigger", "enhanced input", "hold", "tap", "press", "started", "completed", "triggered"]
+    },
+    {
+      "id": "input_007",
+      "title": "Input Lag / Delay Between Press and Response",
+      "symptoms": ["input delay", "input lag", "sluggish controls", "input latency", "movement feels delayed"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Noticeable delay between pressing a button and seeing the response in-game. Controls feel sluggish or unresponsive.",
+      "rootCause": "Multiple factors: VSync adding a frame of latency, frame rate limiting, animation blend times, networked input prediction lag, or processing input on the wrong thread/tick group.",
+      "solution": [
+        "Disable VSync or use variable refresh rate (G-Sync/FreeSync) to reduce display latency",
+        "Set frame rate cap slightly above refresh rate with t.MaxFPS",
+        "Enable NVIDIA Reflex if supported: set r.Reflex.Enable 1",
+        "For movement, ensure Character Movement Component has good prediction settings",
+        "Check animation montages - short blend-in times feel more responsive",
+        "Process critical input in PrePhysics tick group instead of later tick groups"
+      ],
+      "tags": ["input lag", "latency", "vsync", "reflex", "delay", "responsiveness"]
+    },
+    {
+      "id": "input_008",
+      "title": "Touch Input Not Working on Mobile",
+      "symptoms": ["touch not working", "mobile input", "touch events not firing", "android touch", "ios input"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Touch input doesn't register on mobile devices (Android/iOS), or touch events fire incorrectly.",
+      "rootCause": "Touch input requires specific setup in UE5. The Enhanced Input System needs touch-specific Input Actions, or the legacy touch interface needs to be enabled. Widgets may intercept touch before it reaches gameplay.",
+      "solution": [
+        "In Project Settings > Input, ensure 'Use Mouse for Touch' is enabled for desktop testing",
+        "Add touch-specific bindings in your Input Mapping Context (Touch 1, Touch 2, etc.)",
+        "For on-screen virtual joysticks, use the built-in UTouchInterface or create custom widgets",
+        "Set widget hit-test behavior carefully - fullscreen widgets block touch from reaching the game",
+        "Test with 'Mobile Previewer' in editor before deploying to device",
+        "Ensure your PlayerController has bEnableTouchEvents = true"
+      ],
+      "tags": ["touch", "mobile", "android", "ios", "virtual joystick", "touch events"]
+    }
+  ]
+}

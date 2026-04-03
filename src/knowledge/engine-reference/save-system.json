@@ -1,0 +1,98 @@
+{
+  "category": "save-system",
+  "displayName": "Save & Load System",
+  "description": "UE5 save system: USaveGame, SaveGameToSlot, LoadGameFromSlot, async saving, and serialization",
+  "entries": [
+    {
+      "id": "ref_save_001",
+      "title": "USaveGame — Basic Save System",
+      "description": "USaveGame is UE5's built-in serialization framework for saving and loading game data. Create a subclass, define UPROPERTY fields for your data, and use UGameplayStatics to save/load.",
+      "whatItIs": "USaveGame is UE5's base class for save data containers. You subclass it, add UPROPERTY fields for the data you want to persist, then use UGameplayStatics helper functions to serialize it to disk and deserialize it back.",
+      "whenToUse": [
+        "Persisting player progress, inventory, settings, or world state between play sessions",
+        "Simple to medium complexity save needs where a flat data snapshot is sufficient",
+        "Prototyping save/load functionality quickly without external libraries",
+        "Single-player or per-player save data that maps to named save slots"
+      ],
+      "whenNotToUse": [
+        "When you need to save/restore full actor state with references between actors — USaveGame does not handle UObject pointers automatically",
+        "MMO or server-authoritative games where saves must live in a database rather than on local disk",
+        "When your save data is extremely large (hundreds of MB) — consider chunked or streaming approaches instead",
+        "When you need versioning, migration, or complex schema evolution across game updates — USaveGame has limited built-in support for that"
+      ],
+      "relatedClasses": [
+        "UGameplayStatics",
+        "USaveGame",
+        "UGameInstance",
+        "FArchive",
+        "FMemoryWriter",
+        "FMemoryReader",
+        "ULocalPlayerSaveGame"
+      ],
+      "commonMistakes": [
+        "Storing raw UObject* or AActor* pointers in the save game — these cannot be serialized and will be null on load. Use soft references or IDs instead.",
+        "Forgetting to check DoesSaveGameExist() before loading, leading to null casts",
+        "Not using UPROPERTY() on fields — non-UPROPERTY fields are not serialized by USaveGame",
+        "Saving every frame or tick instead of at logical checkpoints, causing disk I/O stutters",
+        "Hardcoding slot names instead of using a slot management system, making multiple save slots difficult"
+      ],
+      "keyPoints": [
+        "Subclass USaveGame and add UPROPERTY() fields for everything you want to save",
+        "SaveGameToSlot(SaveObject, SlotName, UserIndex): serialize to disk",
+        "LoadGameFromSlot(SlotName, UserIndex): deserialize from disk, returns USaveGame*",
+        "DoesSaveGameExist(SlotName, UserIndex): check if a save file exists before loading",
+        "CreateSaveGameObject(SaveGameClass): create a new instance to populate before saving",
+        "Slot name: a string identifier (e.g., \"SaveSlot1\", \"AutoSave\"). Maps to a file on disk.",
+        "UserIndex: typically 0 for single-user games",
+        "Supports: basic types, arrays, maps, structs, soft references. Does NOT auto-save actor references.",
+        "Save location: [Project]/Saved/SaveGames/ (.sav files)"
+      ],
+      "codeExample": "// Save game class\nUCLASS()\nclass UMySaveGame : public USaveGame {\n    GENERATED_BODY()\npublic:\n    UPROPERTY()\n    FVector PlayerLocation;\n    \n    UPROPERTY()\n    float PlayerHealth;\n    \n    UPROPERTY()\n    int32 PlayerLevel;\n    \n    UPROPERTY()\n    TArray<FItemData> Inventory;\n    \n    UPROPERTY()\n    TMap<FName, bool> CompletedQuests;\n};\n\n// Saving\nvoid AMyGameMode::SaveGame() {\n    UMySaveGame* Save = Cast<UMySaveGame>(\n        UGameplayStatics::CreateSaveGameObject(UMySaveGame::StaticClass())\n    );\n    \n    AMyCharacter* Player = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));\n    Save->PlayerLocation = Player->GetActorLocation();\n    Save->PlayerHealth = Player->Health;\n    Save->PlayerLevel = Player->Level;\n    Save->Inventory = Player->Inventory;\n    \n    UGameplayStatics::SaveGameToSlot(Save, TEXT(\"Slot1\"), 0);\n}\n\n// Loading\nvoid AMyGameMode::LoadGame() {\n    if (UGameplayStatics::DoesSaveGameExist(TEXT(\"Slot1\"), 0)) {\n        UMySaveGame* Save = Cast<UMySaveGame>(\n            UGameplayStatics::LoadGameFromSlot(TEXT(\"Slot1\"), 0)\n        );\n        // Apply loaded data to the player...\n    }\n}",
+      "tags": ["save game", "usavegame", "save", "load", "slot", "serialize", "savegametoslot"]
+    },
+    {
+      "id": "ref_save_002",
+      "title": "Async Saving & Loading",
+      "description": "For large save files or avoiding hitches, UE5 supports asynchronous save/load operations that don't block the game thread.",
+      "whatItIs": "Async save/load functions are non-blocking alternatives to SaveGameToSlot/LoadGameFromSlot that perform disk I/O on a background thread and notify you via a delegate when complete.",
+      "whenToUse": [
+        "Autosaving during gameplay where any frame hitch would be noticeable",
+        "Loading save data in menus or loading screens without freezing the UI",
+        "When save files are large (many MB) and synchronous I/O causes visible stutters",
+        "Cloud save implementations where you serialize to memory first, then upload asynchronously"
+      ],
+      "whenNotToUse": [
+        "Small save files (a few KB) where synchronous save/load completes in under a millisecond",
+        "When you need the save data immediately on the next line of code — async requires a callback",
+        "During level transitions where the world is being torn down — the callback may fire on a destroyed object",
+        "If your game is already paused or in a loading screen and blocking is acceptable"
+      ],
+      "relatedClasses": [
+        "UGameplayStatics",
+        "USaveGame",
+        "FAsyncSaveGameToSlotDelegate",
+        "FAsyncLoadGameFromSlotDelegate",
+        "FBufferArchive",
+        "FMemoryReader"
+      ],
+      "commonMistakes": [
+        "Not checking bSuccess in the save completion callback — the save can silently fail (disk full, permissions)",
+        "Modifying the save object between calling AsyncSave and the callback firing — the data is being read on another thread",
+        "Not guarding against the owning object being destroyed before the async callback fires (use weak pointers or check IsValid)",
+        "Calling multiple async saves to the same slot simultaneously, causing file corruption",
+        "Assuming async load is instant — showing stale UI data instead of waiting for the callback"
+      ],
+      "keyPoints": [
+        "AsyncSaveGameToSlot(SaveObject, SlotName, UserIndex, Delegate): non-blocking save",
+        "AsyncLoadGameFromSlot(SlotName, UserIndex, Delegate): non-blocking load",
+        "Delegates fire on completion — check success/failure in the callback",
+        "Use for: autosave during gameplay, loading save files in menus without freezing UI",
+        "FAsyncSaveGameToSlotDelegate / FAsyncLoadGameFromSlotDelegate: the callback types",
+        "SaveGameToMemory() / LoadGameFromMemory(): serialize to/from byte arrays for custom storage (cloud saves)",
+        "For very complex saves: consider splitting data across multiple save objects/slots"
+      ],
+      "codeExample": "// Async save\nvoid AMyGameMode::AutoSave() {\n    UMySaveGame* Save = PopulateSaveData();\n    \n    FAsyncSaveGameToSlotDelegate SaveDelegate;\n    SaveDelegate.BindUObject(this, &AMyGameMode::OnSaveComplete);\n    \n    UGameplayStatics::AsyncSaveGameToSlot(Save, TEXT(\"AutoSave\"), 0, SaveDelegate);\n}\n\nvoid AMyGameMode::OnSaveComplete(const FString& SlotName, int32 UserIndex, bool bSuccess) {\n    if (bSuccess) {\n        UE_LOG(LogTemp, Log, TEXT(\"Auto-save successful\"));\n    }\n}\n\n// Async load\nvoid AMyGameMode::LoadGameAsync() {\n    FAsyncLoadGameFromSlotDelegate LoadDelegate;\n    LoadDelegate.BindUObject(this, &AMyGameMode::OnLoadComplete);\n    \n    UGameplayStatics::AsyncLoadGameFromSlot(TEXT(\"AutoSave\"), 0, LoadDelegate);\n}\n\nvoid AMyGameMode::OnLoadComplete(const FString& SlotName, int32 UserIndex, USaveGame* SaveGame) {\n    if (UMySaveGame* Save = Cast<UMySaveGame>(SaveGame)) {\n        ApplySaveData(Save);\n    }\n}",
+      "tags": ["async save", "async load", "autosave", "non-blocking", "cloud save", "memory"]
+    }
+  ]
+}

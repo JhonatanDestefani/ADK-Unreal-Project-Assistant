@@ -1,0 +1,345 @@
+{
+  "category": "gameplay-framework",
+  "displayName": "Gameplay Framework",
+  "description": "Core UE5 gameplay classes: GameMode, GameState, PlayerController, PlayerState, Pawn, Character, HUD, and their lifecycle",
+  "entries": [
+    {
+      "id": "ref_gf_001",
+      "title": "GameMode (AGameModeBase / AGameMode)",
+      "description": "The GameMode defines the rules of the game. It exists ONLY on the server (never on clients). It controls: what Pawn to spawn, what PlayerController to use, match state management, and player join/leave handling.",
+      "whatItIs": "The authoritative server-side class that governs game rules, player spawning, and match flow. It is the single source of truth for how the game operates and is never replicated to clients.",
+      "whenToUse": [
+        "When you need to define which Pawn, PlayerController, HUD, GameState, and PlayerState classes to use",
+        "When implementing match flow logic (pre-match countdown, round transitions, match end conditions)",
+        "When you need to handle player join/leave events on the server",
+        "When you need to validate whether a player is allowed to join (PreLogin)",
+        "When implementing team assignment logic at spawn time",
+        "When you need to control spawn locations and respawn rules"
+      ],
+      "whenNotToUse": [
+        "When you need data accessible on clients — GameMode is server-only",
+        "When storing game state that clients need to see — use GameState instead",
+        "When handling player input — use PlayerController",
+        "When storing per-player replicated data — use PlayerState",
+        "For persistent data across map transitions — use GameInstance"
+      ],
+      "relatedClasses": [
+        "AGameModeBase",
+        "AGameMode",
+        "AGameStateBase",
+        "AGameState",
+        "APlayerController",
+        "APlayerState",
+        "UGameInstance",
+        "AGameSession"
+      ],
+      "commonMistakes": [
+        "Trying to access GameMode on clients — it only exists on the server; use GameState for replicated data",
+        "Putting UI or input logic in GameMode — it has no concept of a local player",
+        "Forgetting to call Super:: on overridden functions like PostLogin, causing broken initialization chains",
+        "Using AGameMode when AGameModeBase would suffice — AGameMode adds match state overhead you may not need",
+        "Storing transient per-player data in GameMode instead of PlayerState",
+        "Not setting DefaultPawnClass and relying on engine defaults, leading to unexpected spawns"
+      ],
+      "keyPoints": [
+        "Only exists on the server — clients cannot access it directly",
+        "AGameModeBase: lightweight base. AGameMode: adds match state machine (WaitingToStart, InProgress, etc.)",
+        "Set per-map in World Settings or globally in Project Settings > Maps & Modes",
+        "Key functions: InitGame(), PreLogin(), PostLogin(), HandleStartingNewPlayer(), Logout()",
+        "DefaultPawnClass, PlayerControllerClass, HUDClass, GameStateClass, PlayerStateClass — all configurable",
+        "Use GetGameMode<T>() on the server to access it"
+      ],
+      "lifecycle": "InitGame() → PreLogin() → Login() → PostLogin() → HandleStartingNewPlayer() → SpawnDefaultPawnFor()",
+      "codeExample": "UCLASS()\nclass AMyGameMode : public AGameModeBase {\n    GENERATED_BODY()\npublic:\n    AMyGameMode() {\n        DefaultPawnClass = AMyCharacter::StaticClass();\n        PlayerControllerClass = AMyPlayerController::StaticClass();\n        GameStateClass = AMyGameState::StaticClass();\n        PlayerStateClass = AMyPlayerState::StaticClass();\n    }\n    \n    virtual void PostLogin(APlayerController* NewPlayer) override {\n        Super::PostLogin(NewPlayer);\n        // Player just joined - set up initial state\n    }\n};",
+      "blueprintExample": "Blueprint Setup:\n1. Create a new Blueprint Class with parent 'Game Mode Base'\n2. Open the Blueprint and go to the Class Defaults panel\n3. Set 'Default Pawn Class' to your character Blueprint (e.g. BP_MyCharacter)\n4. Set 'Player Controller Class', 'Game State Class', 'Player State Class' as needed\n5. To use this GameMode: go to World Settings in your level → set 'GameMode Override' to your BP_MyGameMode\n6. For global default: Project Settings → Maps & Modes → Default GameMode\n7. Override 'Event OnPostLogin' in the Event Graph to run logic when a player joins",
+      "tags": ["gamemode", "server", "rules", "match state", "postlogin", "spawn"]
+    },
+    {
+      "id": "ref_gf_002",
+      "title": "GameState (AGameStateBase / AGameState)",
+      "description": "The GameState holds replicated game-wide state that ALL players need to know about: score, match time, team data, etc. It exists on server and is replicated to all clients.",
+      "whatItIs": "A replicated actor that serves as the public billboard for game-wide data. It is the client-visible counterpart to GameMode, holding any shared state that every player needs to see such as scores, match phase, and team information.",
+      "whenToUse": [
+        "When you need game-wide data visible to all players (scores, match timer, wave count)",
+        "When clients need to read the current match state or game phase",
+        "When you need a replicated list of all players via PlayerArray",
+        "When implementing a scoreboard or match summary screen",
+        "When tracking team-level data like team scores or team player counts"
+      ],
+      "whenNotToUse": [
+        "For per-player data — use PlayerState instead",
+        "For server-only game rules and logic — use GameMode",
+        "For private or sensitive player data that other clients should not see — use PlayerController or a custom actor with owner-only replication",
+        "For data that needs to persist across level transitions — use GameInstance",
+        "For transient local UI state that does not need replication"
+      ],
+      "relatedClasses": [
+        "AGameStateBase",
+        "AGameState",
+        "AGameModeBase",
+        "AGameMode",
+        "APlayerState",
+        "UGameInstance"
+      ],
+      "commonMistakes": [
+        "Storing per-player data in GameState instead of PlayerState, causing unnecessary data coupling",
+        "Forgetting to add UPROPERTY(Replicated) and implement GetLifetimeReplicatedProps, so data never reaches clients",
+        "Using AGameState when AGameStateBase would suffice — AGameState adds match state replication you may not need",
+        "Modifying GameState on clients — authority lives on the server; client changes will be overwritten",
+        "Not using OnRep_ callbacks for client-side reactions to state changes, leading to polling in Tick"
+      ],
+      "keyPoints": [
+        "Replicated to all clients — use for shared game data",
+        "AGameStateBase: basic. AGameState: adds match state replication from AGameMode",
+        "PlayerArray contains all PlayerState objects — use to iterate over all players",
+        "Accessed via GetGameState<T>() from any actor",
+        "Good for: team scores, match timer, wave number, game phase",
+        "NOT for per-player data — use PlayerState for that"
+      ],
+      "codeExample": "UCLASS()\nclass AMyGameState : public AGameStateBase {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(Replicated)\n    int32 TeamAScore;\n    \n    UPROPERTY(Replicated)\n    int32 TeamBScore;\n    \n    UPROPERTY(Replicated)\n    float MatchTimeRemaining;\n};",
+      "tags": ["gamestate", "replicated", "score", "match", "shared state"]
+    },
+    {
+      "id": "ref_gf_003",
+      "title": "PlayerController (APlayerController)",
+      "description": "The PlayerController represents the player's will — it receives input and possesses a Pawn. Each human player has exactly one PlayerController. It persists across Pawn deaths and level transitions.",
+      "whatItIs": "The non-physical representation of a human player. It bridges the gap between raw hardware input and in-world actions by possessing Pawns, managing the camera, and owning the HUD. It persists even when the player's Pawn is destroyed.",
+      "whenToUse": [
+        "When you need to handle player input setup and input mode switching (Game, UI, or both)",
+        "When managing the camera through PlayerCameraManager",
+        "When creating or managing HUD and UMG widget display",
+        "When you need logic that persists across Pawn deaths (respawn timers, spectating)",
+        "When implementing pause menus, input mode toggling, or mouse cursor visibility",
+        "When you need to execute server RPCs that are tied to a specific player's authority"
+      ],
+      "whenNotToUse": [
+        "For AI-controlled entities — use AAIController instead",
+        "For storing data other players need to see — use PlayerState (PlayerController is not replicated to other clients)",
+        "For physics, movement, or visual representation — use the Pawn/Character",
+        "For game-wide rules — use GameMode",
+        "For data that must survive level transitions — use GameInstance (PlayerController is destroyed on non-seamless travel)"
+      ],
+      "relatedClasses": [
+        "APlayerController",
+        "AController",
+        "AAIController",
+        "APawn",
+        "ACharacter",
+        "AHUD",
+        "APlayerCameraManager",
+        "UEnhancedInputLocalPlayerSubsystem",
+        "UInputMappingContext"
+      ],
+      "commonMistakes": [
+        "Putting gameplay logic in PlayerController that belongs in the Pawn — the controller should control, not act",
+        "Assuming other clients have access to your PlayerController — only the server and the owning client have it",
+        "Forgetting to call Super::SetupInputComponent(), breaking the input chain",
+        "Not using Enhanced Input System in UE5 and relying on deprecated BindAction/BindAxis",
+        "Casting to a specific PlayerController class from other clients' code, which returns null because it does not exist on their machine",
+        "Handling input directly in PlayerController instead of forwarding to the Pawn via possession"
+      ],
+      "keyPoints": [
+        "One per human player — persists even when the Pawn dies",
+        "Owns the input system: receives raw input and routes it to the possessed Pawn",
+        "Manages the camera: PlayerCameraManager",
+        "Manages the HUD and UI widgets",
+        "In multiplayer: exists on server + owning client only (NOT on other clients)",
+        "Key functions: SetupInputComponent(), OnPossess(), OnUnPossess(), SetInputMode()",
+        "Use GetController<APlayerController>() from a Pawn, or GetWorld()->GetFirstPlayerController() for single-player"
+      ],
+      "lifecycle": "Created at Login → OnPossess(Pawn) → Receives Input → OnUnPossess() → OnPossess(NewPawn)",
+      "tags": ["playercontroller", "input", "possess", "camera", "hud", "player"]
+    },
+    {
+      "id": "ref_gf_004",
+      "title": "PlayerState (APlayerState)",
+      "description": "Stores per-player data that ALL players need to know about: name, score, team, ping. Replicated to everyone. Persists across Pawn deaths.",
+      "whatItIs": "A replicated actor that acts as the public data record for a single player. Every player in the game has one, and all clients can read every player's PlayerState, making it ideal for scoreboards, team indicators, and nameplates.",
+      "whenToUse": [
+        "When storing per-player data that all other players need to see (score, kills, deaths, team)",
+        "When building a scoreboard or leaderboard that reads live player stats",
+        "When you need player identity info accessible by all clients (player name, unique ID, ping)",
+        "When tracking statistics that must survive Pawn death and respawn",
+        "When implementing team assignment that other players can query"
+      ],
+      "whenNotToUse": [
+        "For private per-player data like inventory contents or quest progress — use PlayerController or a custom actor with owner-only replication",
+        "For game-wide data like match timer or team totals — use GameState",
+        "For data that must persist across level transitions — use GameInstance or a SaveGame object",
+        "For heavy or complex data structures that would waste bandwidth replicating to every client",
+        "For AI bot data that does not need player-like replication"
+      ],
+      "relatedClasses": [
+        "APlayerState",
+        "APlayerController",
+        "AGameStateBase",
+        "AGameState",
+        "AGameModeBase",
+        "APawn"
+      ],
+      "commonMistakes": [
+        "Storing large amounts of data in PlayerState — it replicates to ALL clients, so keep it lean",
+        "Forgetting that PlayerState is automatically created for each PlayerController — do not create it manually",
+        "Accessing PlayerState before it is replicated on a client, leading to null pointer crashes",
+        "Using PlayerState for private data like inventory, which exposes it to all other clients",
+        "Not using OnRep_ functions for client-side updates, polling in Tick instead",
+        "Confusing PlayerState lifetime with Pawn lifetime — PlayerState survives Pawn death, but a new one is created on reconnect"
+      ],
+      "keyPoints": [
+        "Replicated to ALL clients — everyone can see every player's state",
+        "Persists across Pawn deaths and respawns",
+        "Automatically created for each PlayerController",
+        "Default properties: PlayerName, PlayerId, Ping, Score",
+        "Use for: player score, kill count, team assignment, player level/rank",
+        "Access from Pawn: GetPlayerState<AMyPlayerState>()",
+        "NOT for private data (inventory details, etc.) — use the PlayerController or a custom replicated actor"
+      ],
+      "codeExample": "UCLASS()\nclass AMyPlayerState : public APlayerState {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(Replicated)\n    int32 Kills;\n    \n    UPROPERTY(Replicated)\n    int32 Deaths;\n    \n    UPROPERTY(Replicated)\n    ETeam CurrentTeam;\n};",
+      "tags": ["playerstate", "score", "replicated", "team", "player data"]
+    },
+    {
+      "id": "ref_gf_005",
+      "title": "Pawn and Character (APawn / ACharacter)",
+      "description": "A Pawn is the physical representation of a player or AI in the world. ACharacter extends APawn with a CharacterMovementComponent for built-in walking, jumping, flying, and swimming.",
+      "whatItIs": "The in-world physical avatar that a Controller possesses. APawn is the minimal base with collision and controller support, while ACharacter adds a capsule collider, skeletal mesh, and the powerful CharacterMovementComponent with built-in networked movement prediction.",
+      "whenToUse": [
+        "Use ACharacter when you need humanoid movement with walking, jumping, crouching, swimming, or flying out of the box",
+        "Use APawn when you need a non-humanoid entity like a vehicle, drone, or turret with custom movement",
+        "When you need a physical entity in the world that can be possessed by a player or AI",
+        "When you need built-in network movement prediction and correction (ACharacter)",
+        "When you need to bind player input via SetupPlayerInputComponent"
+      ],
+      "whenNotToUse": [
+        "For non-physical game logic — use PlayerController, GameMode, or GameState",
+        "For simple projectiles or environmental objects — use AActor directly",
+        "If you need fully custom movement without CharacterMovementComponent overhead — use APawn with a custom MovementComponent",
+        "For AI logic and decision-making — use AIController; the Pawn is just the body",
+        "If you do not need possession semantics at all — use a plain AActor"
+      ],
+      "relatedClasses": [
+        "APawn",
+        "ACharacter",
+        "UCharacterMovementComponent",
+        "UPawnMovementComponent",
+        "UFloatingPawnMovement",
+        "AController",
+        "APlayerController",
+        "AAIController",
+        "UCapsuleComponent",
+        "USkeletalMeshComponent"
+      ],
+      "commonMistakes": [
+        "Using ACharacter for vehicles or flying drones — CharacterMovementComponent is designed for bipedal movement and adds unnecessary overhead",
+        "Placing gameplay logic in the Pawn that belongs in the Controller, coupling AI and player behavior together",
+        "Forgetting that SetupPlayerInputComponent is only called for the locally controlled Pawn — do not rely on it for server-side setup",
+        "Directly setting actor location for movement instead of using the MovementComponent, which breaks collision and network prediction",
+        "Not calling Super::SetupPlayerInputComponent(), breaking parent class input bindings",
+        "Assuming the Pawn always has a valid Controller — it can be unpossessed"
+      ],
+      "keyPoints": [
+        "APawn: base class. Has a Controller, can receive input. No built-in movement.",
+        "ACharacter: adds CapsuleComponent, CharacterMovementComponent, SkeletalMeshComponent",
+        "CharacterMovementComponent handles: walking, jumping, falling, flying, swimming, crouching, network prediction",
+        "Possessed by a Controller (PlayerController for humans, AIController for AI)",
+        "SetupPlayerInputComponent() is where you bind input for the local player",
+        "In multiplayer: the Pawn is replicated. Server spawns it, clients get a replicated copy",
+        "Destroyed on death — PlayerController survives and possesses a new Pawn on respawn"
+      ],
+      "codeExample": "UCLASS()\nclass AMyCharacter : public ACharacter {\n    GENERATED_BODY()\npublic:\n    AMyCharacter() {\n        // CharacterMovement is auto-created\n        GetCharacterMovement()->MaxWalkSpeed = 600.f;\n        GetCharacterMovement()->JumpZVelocity = 420.f;\n    }\n    \n    virtual void SetupPlayerInputComponent(UInputComponent* PIC) override {\n        Super::SetupPlayerInputComponent(PIC);\n        // Bind input here — only called for locally controlled pawn\n    }\n};",
+      "blueprintExample": "Blueprint Setup:\n1. Create a new Blueprint Class with parent 'Character'\n2. The Blueprint automatically comes with: CapsuleComponent, ArrowComponent, Mesh (SkeletalMesh), and CharacterMovement\n3. Select the 'CharacterMovement' component in the Components panel to configure:\n   - Max Walk Speed (default 600)\n   - Jump Z Velocity (default 420)\n   - Can Crouch, Can Swim, Can Fly, etc.\n4. To set up the mesh: select the 'Mesh' component → set Skeletal Mesh and Animation Blueprint\n5. For input: in Event Graph, use 'Event SetupPlayerInputComponent' or use Enhanced Input Actions\n6. To move: use 'Add Movement Input' node with 'Get Actor Forward Vector' for direction\n7. To jump: use the built-in 'Jump' and 'Stop Jumping' functions — enable 'Can Jump' in CharacterMovement",
+      "tags": ["pawn", "character", "movement", "possess", "capsule", "input"]
+    },
+    {
+      "id": "ref_gf_006",
+      "title": "GameInstance (UGameInstance)",
+      "description": "The GameInstance persists for the entire lifetime of the game process. It is NOT destroyed during level transitions, making it ideal for data that must survive map changes.",
+      "whatItIs": "A UObject (not an Actor) that lives from engine initialization to application shutdown. It is the only standard framework class that truly persists across level loads and seamless travel, making it the go-to place for data and systems that must outlive any single map.",
+      "whenToUse": [
+        "When you need data or state that survives level transitions (player profile, save system handle, audio manager)",
+        "When managing online subsystem sessions, matchmaking, or lobby state",
+        "When implementing a persistent save/load system manager",
+        "When tracking global settings like audio volume or language preference",
+        "When you need initialization logic that runs once at application startup (Init event)"
+      ],
+      "whenNotToUse": [
+        "For game-wide replicated state — use GameState (GameInstance is NOT replicated)",
+        "For per-level game rules — use GameMode",
+        "For per-player replicated data — use PlayerState",
+        "For anything that needs to be an Actor in the world with transforms and components",
+        "When the Subsystem pattern is more appropriate — consider UGameInstanceSubsystem for modular persistent features"
+      ],
+      "relatedClasses": [
+        "UGameInstance",
+        "UGameInstanceSubsystem",
+        "ULocalPlayer",
+        "USaveGame",
+        "UEngine",
+        "AGameModeBase",
+        "AGameStateBase"
+      ],
+      "commonMistakes": [
+        "Assuming GameInstance is replicated — it is local to each machine; server and client each have their own",
+        "Using GameInstance as a dumping ground for everything — keep it focused; use Subsystems for modular features",
+        "Referencing world-specific Actors from GameInstance without null-checking — the world changes on level load",
+        "Forgetting to set the custom GameInstance class in Project Settings > Maps & Modes, so the default one is used",
+        "Storing large assets in GameInstance that never get unloaded, causing memory bloat",
+        "Not overriding Init() and Shutdown() for proper lifecycle management"
+      ],
+      "keyPoints": [
+        "Created when the game starts, destroyed when the game exits",
+        "Survives level loads and seamless travel — unlike all Actors",
+        "NOT replicated — each machine (server/client) has its own instance",
+        "Use for: persistent player data, save system management, analytics, global settings",
+        "Set in Project Settings > Maps & Modes > Game Instance Class",
+        "Access via GetGameInstance<UMyGameInstance>() from any UObject with a World"
+      ],
+      "tags": ["gameinstance", "persistent", "level transition", "global", "save"]
+    },
+    {
+      "id": "ref_gf_007",
+      "title": "Actor Lifecycle",
+      "description": "Understanding when Actor functions are called is critical. The lifecycle goes from construction through initialization, gameplay, and destruction.",
+      "whatItIs": "The ordered sequence of engine-called functions that every AActor goes through from creation to garbage collection. Mastering this lifecycle is essential for knowing where to safely initialize variables, bind delegates, start gameplay logic, and clean up resources.",
+      "whenToUse": [
+        "When deciding where to place initialization code (Constructor vs BeginPlay vs PostInitializeComponents)",
+        "When you need to understand why a variable is null at a certain point in execution",
+        "When setting up or tearing down timers, delegates, and async operations",
+        "When debugging actors that behave differently in PIE vs packaged builds due to initialization order",
+        "When implementing object pooling and need to understand reactivation vs fresh construction"
+      ],
+      "whenNotToUse": [
+        "You always need to understand the lifecycle — there is no case where it does not apply to Actors",
+        "However, do not override every lifecycle function just in case — only override what you actually need",
+        "Do not use Constructor for gameplay logic — the world, other actors, and even the game mode may not exist yet"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "UActorComponent",
+        "UWorld",
+        "UGameplayStatics",
+        "FTimerManager",
+        "UObject"
+      ],
+      "commonMistakes": [
+        "Putting gameplay logic in the Constructor — it runs for the CDO (Class Default Object) and during editor time, not just at spawn",
+        "Using GetWorld(), GetGameMode(), or GetPlayerController() in the Constructor — the world does not exist yet for the CDO",
+        "Forgetting that BeginPlay order between actors is NOT guaranteed — do not assume another actor's BeginPlay has already run",
+        "Not cleaning up timers and delegates in EndPlay, causing crashes when the timer fires on a destroyed actor",
+        "Using BeginDestroy for gameplay cleanup — use EndPlay instead; BeginDestroy is for engine garbage collection",
+        "Calling Destroy() and expecting immediate destruction — the actor is marked pending kill and cleaned up later by GC",
+        "Not calling Super:: on overridden lifecycle functions, breaking the initialization chain"
+      ],
+      "keyPoints": [
+        "Constructor: called for CDO AND real instances. Only CreateDefaultSubobject here. No gameplay logic.",
+        "PostInitializeComponents(): called after all components are initialized. Good for caching component refs.",
+        "BeginPlay(): called when the actor is ready for gameplay. World is valid. Safe for gameplay setup.",
+        "Tick(DeltaTime): called every frame if ticking is enabled.",
+        "EndPlay(): called when the actor is being removed. Clean up timers, delegates, async tasks.",
+        "BeginDestroy()/FinishDestroy(): GC cleanup. Don't use for gameplay — use EndPlay."
+      ],
+      "lifecycle": "Constructor → PostInitializeComponents → BeginPlay → Tick (every frame) → EndPlay → BeginDestroy",
+      "blueprintExample": "Blueprint Equivalents:\n1. Constructor → 'Construction Script' (runs in editor and at spawn, use for setup that should preview in editor)\n2. BeginPlay → 'Event BeginPlay' (the most common starting point — safe to access other actors and the world)\n3. Tick → 'Event Tick' (called every frame — avoid heavy logic here; use Timers instead when possible)\n4. EndPlay → 'Event EndPlay' (clean up references, stop timers)\n5. To add a Timer instead of Tick: use 'Set Timer by Function Name' or 'Set Timer by Event' node\n6. Key difference: Blueprint Construction Script runs in the editor for preview, C++ Constructor runs for the CDO too",
+      "tags": ["lifecycle", "beginplay", "endplay", "constructor", "tick", "initialization"]
+    }
+  ]
+}

@@ -1,0 +1,311 @@
+{
+  "category": "core-classes",
+  "displayName": "Core Classes",
+  "description": "Fundamental UE5 classes: AActor, UObject, UActorComponent, USceneComponent, UWorld — the building blocks of everything",
+  "entries": [
+    {
+      "id": "ref_core_001",
+      "title": "AActor — Base Actor Class",
+      "description": "AActor is the base class for all objects that can be placed or spawned in a level. Every enemy, projectile, pickup, trigger, and visual effect is an Actor. Actors are containers for Components.",
+      "whatItIs": "AActor is the fundamental placeable entity in UE5. It serves as a container that holds Components (which provide the actual visuals, collision, and behavior) and participates in replication, level streaming, and the gameplay framework.",
+      "whenToUse": [
+        "When you need an entity that exists in the world with a transform (position, rotation, scale)",
+        "When you need to spawn or destroy something at runtime (projectiles, pickups, enemies)",
+        "When you need something that can be placed in a level by designers in the editor",
+        "When you need an entity that participates in networking/replication",
+        "When you need collision detection and physics simulation via components"
+      ],
+      "whenNotToUse": [
+        "When you only need data storage with no world presence — use UObject or UDataAsset instead",
+        "When you need reusable logic that can be added to multiple actor types — use UActorComponent instead",
+        "When you need a player-controlled entity — use APawn or ACharacter instead of raw AActor",
+        "When you need UI elements — use UUserWidget, not an Actor",
+        "When you have hundreds of identical static objects — consider Instanced Static Meshes or PCG instead of individual Actors for performance"
+      ],
+      "relatedClasses": [
+        "APawn",
+        "ACharacter",
+        "APlayerController",
+        "AGameModeBase",
+        "AInfo",
+        "AHUD",
+        "UActorComponent",
+        "USceneComponent"
+      ],
+      "commonMistakes": [
+        "Putting gameplay logic directly in the Actor instead of in reusable Components — leads to duplicated code across actor types",
+        "Forgetting to call Super::BeginPlay() or Super::Tick() in overrides — causes engine functionality to break silently",
+        "Using the constructor for runtime logic — the constructor runs on the CDO and during loading, not just at spawn time",
+        "Calling Destroy() and then continuing to access the actor in the same function — the pointer is still valid that frame but the actor is marked pending kill",
+        "Not setting a root component — the actor will have no transform and SetActorLocation will silently fail",
+        "Spawning actors every frame instead of using object pooling — causes GC hitches and memory fragmentation"
+      ],
+      "keyPoints": [
+        "Actors don't have built-in visuals or collision — they get functionality from Components",
+        "Key functions: BeginPlay(), Tick(), EndPlay(), Destroyed()",
+        "Spawning: GetWorld()->SpawnActor<T>(Class, Location, Rotation, SpawnParams)",
+        "Destroying: Destroy() marks for destruction at end of frame. Actor->IsActorBeingDestroyed() to check",
+        "Components: use CreateDefaultSubobject<T>() in constructor, FindComponentByClass<T>() at runtime",
+        "SetRootComponent(): every actor needs a root component for transform (location/rotation/scale)",
+        "Tags: Actor->Tags (TArray<FName>) for lightweight categorization. Actor->ActorHasTag()",
+        "SetActorLocation(), SetActorRotation(), SetActorTransform() for positioning",
+        "GetActorLocation(), GetActorForwardVector(), GetActorRotation() for reading transform",
+        "SetLifeSpan(Seconds): auto-destroys after the given time. Great for projectiles/effects",
+        "AttachToActor(), AttachToComponent(): parent actors to other actors/components"
+      ],
+      "lifecycle": "Constructor → PostInitializeComponents → BeginPlay → Tick → EndPlay → Destroyed → BeginDestroy",
+      "codeExample": "UCLASS()\nclass AMyProjectile : public AActor {\n    GENERATED_BODY()\npublic:\n    AMyProjectile() {\n        SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT(\"Sphere\"));\n        SetRootComponent(SphereComp);\n        \n        MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT(\"Mesh\"));\n        MeshComp->SetupAttachment(SphereComp);\n        \n        ProjectileComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT(\"Projectile\"));\n        \n        SetLifeSpan(5.f); // Auto-destroy after 5 seconds\n    }\n    \n    virtual void BeginPlay() override {\n        Super::BeginPlay();\n        SphereComp->OnComponentBeginOverlap.AddDynamic(this, &AMyProjectile::OnOverlap);\n    }\n};",
+      "tags": ["actor", "base class", "spawn", "destroy", "component", "transform", "lifecycle"]
+    },
+    {
+      "id": "ref_core_002",
+      "title": "UObject — Root of All UE5 Objects",
+      "description": "UObject is the ultimate base class for everything in UE5. It provides reflection, serialization, garbage collection, and the CDO (Class Default Object) system.",
+      "whatItIs": "UObject is the root base class of the entire UE5 type hierarchy. It provides the engine's core infrastructure: garbage collection, reflection (UPROPERTY/UFUNCTION metadata), serialization for saving/loading, and the Class Default Object pattern used to initialize new instances.",
+      "whenToUse": [
+        "When you need a lightweight data container that participates in garbage collection and serialization but doesn't exist in the world",
+        "When you need a non-Actor, non-Component object that must be referenced by UPROPERTY (e.g., ability objects, data processors)",
+        "When you need runtime-created objects that benefit from UE5 reflection (Blueprint exposure, details panel)",
+        "When building subsystem-internal objects that don't need a world transform or tick"
+      ],
+      "whenNotToUse": [
+        "When you need something placed in the world — use AActor instead",
+        "When you need reusable behavior attached to actors — use UActorComponent instead",
+        "When you only need plain data with no GC/reflection — use a plain USTRUCT instead, which is cheaper",
+        "When you need config data loaded from assets — use UDataAsset or UPrimaryDataAsset instead",
+        "When you need a singleton manager — use UGameInstanceSubsystem or UWorldSubsystem instead of a raw UObject"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "UActorComponent",
+        "UDataAsset",
+        "UPrimaryDataAsset",
+        "UBlueprintFunctionLibrary",
+        "UGameInstanceSubsystem",
+        "UDeveloperSettings"
+      ],
+      "commonMistakes": [
+        "Storing a UObject* without UPROPERTY() — the garbage collector has no way to know it's referenced and will destroy it",
+        "Using NewObject in a constructor — constructors run on the CDO; use NewObject in BeginPlay or later",
+        "Forgetting to set the Outer parameter in NewObject — the Outer determines the object's lifetime and package ownership",
+        "Using static_cast instead of Cast<T>() — Cast returns nullptr on failure, static_cast causes undefined behavior on wrong types",
+        "Holding raw UObject pointers across frames without validity checks — always use IsValid() or TWeakObjectPtr for references that may become stale",
+        "Creating deep UObject hierarchies when USTRUCT would suffice — UObjects have per-instance GC overhead that structs avoid"
+      ],
+      "keyPoints": [
+        "All UE5 classes inherit from UObject: AActor, UActorComponent, UWidget, UGameInstance, etc.",
+        "Garbage collected: UObjects with no UPROPERTY references are automatically destroyed",
+        "CDO (Class Default Object): a template instance created at engine startup. Constructor runs on CDO first.",
+        "NewObject<T>(): creates a new UObject instance (non-Actor objects). Needs an Outer.",
+        "IsValid(Object): safely checks if a UObject pointer is non-null and not pending kill",
+        "Cast<T>(Object): safe downcast that returns nullptr on failure. Always use instead of static_cast.",
+        "IsA<T>() or IsA(UClass*): checks class hierarchy without casting",
+        "GetClass(): returns the UClass metadata object. GetName(): returns the object name.",
+        "UPROPERTY(): required for GC to track references. Raw UObject* without UPROPERTY WILL get collected.",
+        "TWeakObjectPtr<T>: weak reference that doesn't prevent garbage collection",
+        "ConstructorHelpers::FObjectFinder / FClassFinder: load assets by path in constructors only"
+      ],
+      "codeExample": "// Creating UObjects\nUMyDataObject* Data = NewObject<UMyDataObject>(this); // 'this' is the Outer\n\n// Safe casting\nif (AMyEnemy* Enemy = Cast<AMyEnemy>(OtherActor)) {\n    Enemy->TakeDamage(50.f);\n}\n\n// Validity check\nif (IsValid(TargetActor)) {\n    // Safe to use\n}\n\n// Class checking\nif (SomeActor->IsA<ACharacter>()) {\n    // It's a character\n}\n\n// UPROPERTY prevents GC — this is safe:\nUPROPERTY()\nUMyObject* SafeRef;\n\n// This is NOT safe — GC may destroy it:\nUMyObject* UnsafeRef; // DANGER!",
+      "tags": ["uobject", "garbage collection", "cast", "isvalid", "newobject", "cdo", "reflection"]
+    },
+    {
+      "id": "ref_core_003",
+      "title": "UActorComponent — Base Component (No Transform)",
+      "description": "UActorComponent is the base class for all components. It provides lifecycle events but NO transform (no position/rotation/scale). Use for pure logic components.",
+      "whatItIs": "UActorComponent is the base component class that provides lifecycle management (BeginPlay, Tick, EndPlay) and activation control, but intentionally has no spatial presence. It is the correct base class for components that represent pure gameplay logic, data, or systems rather than something positioned in the world.",
+      "whenToUse": [
+        "When you need reusable gameplay logic that can be attached to any actor type (health system, inventory, buff/debuff tracker)",
+        "When the component has no concept of position or rotation — it's pure data/behavior",
+        "When you want designers to be able to add/configure gameplay systems on actors in the editor",
+        "When you want to decouple systems from specific actor classes so multiple actor types can share behavior",
+        "When you need a component that ticks independently of its owning actor's tick"
+      ],
+      "whenNotToUse": [
+        "When the component needs a position in the world — use USceneComponent or its subclasses instead",
+        "When you need to attach child components in a hierarchy — UActorComponent cannot be a parent in the attachment tree",
+        "When the logic is specific to one actor class and will never be reused — just put it directly in the actor to avoid indirection",
+        "When you need a standalone object not tied to an actor — use UObject or a Subsystem instead",
+        "When you need the functionality to exist without an owning actor — components require an actor owner"
+      ],
+      "relatedClasses": [
+        "USceneComponent",
+        "UProjectileMovementComponent",
+        "URotatingMovementComponent",
+        "UInterpToMovementComponent",
+        "UCharacterMovementComponent",
+        "UAbilitySystemComponent"
+      ],
+      "commonMistakes": [
+        "Inheriting from USceneComponent when no transform is needed — adds unnecessary overhead and confuses the intent",
+        "Leaving PrimaryComponentTick.bCanEverTick = true when the component doesn't need to tick — wastes CPU every frame",
+        "Forgetting to call RegisterComponent() when creating components at runtime with NewObject instead of CreateDefaultSubobject",
+        "Accessing GetOwner() in the constructor — the owner is not set yet; use BeginPlay or InitializeComponent instead",
+        "Not calling Super::BeginPlay() in overrides — breaks engine initialization of the component",
+        "Creating components with CreateDefaultSubobject outside of the constructor — this function is constructor-only"
+      ],
+      "keyPoints": [
+        "No transform: cannot be positioned in the world. For transform, use USceneComponent.",
+        "Lifecycle: InitializeComponent() → BeginPlay() → TickComponent() → EndPlay() → DestroyComponent()",
+        "bAutoActivate: if true, component activates on BeginPlay. Use Activate()/Deactivate() to control.",
+        "ComponentTags: TArray<FName> for tagging components. Use ComponentHasTag().",
+        "RegisterComponent(): needed if creating components at runtime (CreateDefaultSubobject auto-registers).",
+        "Built-in logic components: UProjectileMovementComponent, URotatingMovementComponent, UInterpToMovementComponent",
+        "Create custom logic components for reusable gameplay systems (health, inventory, quest tracker)"
+      ],
+      "codeExample": "// Custom logic component — no transform needed\nUCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))\nclass UHealthComponent : public UActorComponent {\n    GENERATED_BODY()\npublic:\n    UHealthComponent() {\n        PrimaryComponentTick.bCanEverTick = false; // No tick needed\n    }\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    float MaxHealth = 100.f;\n    \n    UPROPERTY(BlueprintReadOnly)\n    float CurrentHealth;\n    \n    UPROPERTY(BlueprintAssignable)\n    FOnHealthChanged OnHealthChanged;\n    \n    virtual void BeginPlay() override {\n        Super::BeginPlay();\n        CurrentHealth = MaxHealth;\n    }\n    \n    UFUNCTION(BlueprintCallable)\n    void ApplyDamage(float Amount) {\n        CurrentHealth = FMath::Clamp(CurrentHealth - Amount, 0.f, MaxHealth);\n        OnHealthChanged.Broadcast(CurrentHealth, MaxHealth);\n    }\n};",
+      "tags": ["actor component", "component", "logic", "no transform", "lifecycle", "custom component"]
+    },
+    {
+      "id": "ref_core_004",
+      "title": "USceneComponent — Component With Transform",
+      "description": "USceneComponent extends UActorComponent with a transform (location, rotation, scale) and attachment hierarchy. It's the base for all visible and spatial components.",
+      "whatItIs": "USceneComponent is the component base class that adds a world transform (position, rotation, scale) and the ability to form parent-child attachment hierarchies. Every component that has a physical presence in the world — meshes, cameras, lights, collision shapes, audio — inherits from USceneComponent.",
+      "whenToUse": [
+        "When you need a component that has a position, rotation, or scale in the world",
+        "When you need to build a parent-child attachment hierarchy of components on an actor",
+        "When you need an empty transform node as a root component or organizational parent for other components",
+        "When you need a socket/attach point that other components or actors can attach to",
+        "When you need a component that can be offset relative to its parent in the component tree"
+      ],
+      "whenNotToUse": [
+        "When your component is pure logic with no spatial concept — use UActorComponent to avoid the transform overhead",
+        "When you actually need a visible mesh — use UStaticMeshComponent or USkeletalMeshComponent directly, not raw USceneComponent",
+        "When you need collision — use a collision component (USphereComponent, UBoxComponent, UCapsuleComponent) not raw USceneComponent",
+        "When you need an actor-level construct, not a component — use AActor or AInfo"
+      ],
+      "relatedClasses": [
+        "UActorComponent",
+        "UStaticMeshComponent",
+        "USkeletalMeshComponent",
+        "UCameraComponent",
+        "USpringArmComponent",
+        "UAudioComponent",
+        "ULightComponent",
+        "UArrowComponent",
+        "UChildActorComponent"
+      ],
+      "commonMistakes": [
+        "Using SetupAttachment() outside the constructor or AttachToComponent() inside the constructor — SetupAttachment is constructor-only, AttachToComponent is runtime-only",
+        "Not setting a root component on the actor — all other scene components need a root to attach to",
+        "Using SetWorldLocation when SetRelativeLocation was intended (or vice versa) — causes unexpected positioning when the component has a parent",
+        "Forgetting the KeepRelativeTransform/KeepWorldTransform/SnapToTarget attachment rule — defaults may not be what you expect",
+        "Creating deep attachment hierarchies (10+ levels) — each level adds transform computation cost and complicates debugging",
+        "Calling SetupAttachment with a parent from a different actor — SetupAttachment only works within the same actor's component tree"
+      ],
+      "keyPoints": [
+        "Has transform: GetComponentLocation(), SetWorldLocation(), SetRelativeLocation()",
+        "Attachment: SetupAttachment(Parent) in constructor, AttachToComponent() at runtime",
+        "Root component: the actor's root must be a USceneComponent (or subclass). Set via SetRootComponent().",
+        "Child classes: UStaticMeshComponent, USkeletalMeshComponent, UCameraComponent, USpringArmComponent, all collision shapes",
+        "GetForwardVector(), GetRightVector(), GetUpVector() for directional queries",
+        "GetChildrenComponents(): get all attached child components",
+        "SetVisibility(bool, bPropagateToChildren): show/hide component and optionally children",
+        "Socket attachment: AttachToComponent(Parent, Rules, SocketName) for skeletal mesh sockets"
+      ],
+      "codeExample": "// Scene component hierarchy in constructor\nAMyActor::AMyActor() {\n    // Root\n    RootComp = CreateDefaultSubobject<USceneComponent>(TEXT(\"Root\"));\n    SetRootComponent(RootComp);\n    \n    // Mesh attached to root\n    Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT(\"Mesh\"));\n    Mesh->SetupAttachment(RootComp);\n    \n    // Camera arm attached to root\n    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT(\"Arm\"));\n    SpringArm->SetupAttachment(RootComp);\n    SpringArm->TargetArmLength = 300.f;\n    \n    // Camera attached to arm\n    Camera = CreateDefaultSubobject<UCameraComponent>(TEXT(\"Camera\"));\n    Camera->SetupAttachment(SpringArm);\n}",
+      "tags": ["scene component", "transform", "attachment", "hierarchy", "root component", "location", "rotation"]
+    },
+    {
+      "id": "ref_core_005",
+      "title": "UWorld — The Game World",
+      "description": "UWorld represents the current game world/level. It's the gateway to spawning actors, running traces, managing timers, and accessing global systems. Access via GetWorld() from any Actor or Component.",
+      "whatItIs": "UWorld is the top-level object representing the currently loaded game world. It owns all actors in the level, manages the physics scene, provides the timer system, and serves as the entry point for world queries like line traces and overlap tests. There is typically one UWorld for the game and one for the editor.",
+      "whenToUse": [
+        "When you need to spawn actors at runtime — SpawnActor is called on the World",
+        "When you need to perform line traces, sweeps, or overlap queries against the physics scene",
+        "When you need timers (delayed calls, repeating calls) via the TimerManager",
+        "When you need to access world time (GetTimeSeconds, GetDeltaSeconds)",
+        "When you need to travel to another map or sublevel",
+        "When you need to iterate over all actors of a certain type in the level"
+      ],
+      "whenNotToUse": [
+        "When you need data that persists across level loads — use UGameInstance or SaveGame instead; UWorld is destroyed on level transition",
+        "When you need to access UWorld from a non-world context (e.g., a static function or commandlet) — there may not be a valid world",
+        "When you need editor-time queries in a tool/plugin — be careful, the editor world and PIE world are different UWorld instances",
+        "When you're tempted to cache GetWorld() — just call it each time; it's very cheap and avoids stale pointer issues"
+      ],
+      "relatedClasses": [
+        "ULevel",
+        "UGameInstance",
+        "AGameModeBase",
+        "AGameStateBase",
+        "AWorldSettings",
+        "ULevelStreaming",
+        "FTimerManager",
+        "APlayerController"
+      ],
+      "commonMistakes": [
+        "Calling GetWorld() in a constructor — the world does not exist yet during construction; use BeginPlay or later",
+        "Assuming GetWorld() is always valid on a UObject — only objects with a world context (actors, components) have a valid world",
+        "Forgetting that timers are cleared on level transitions — re-register timers in BeginPlay, not in the constructor",
+        "Using LineTraceSingleByChannel with the wrong collision channel — ECC_Visibility traces against visibility, not physics collision",
+        "Storing the UWorld pointer long-term — it changes on level travel; always call GetWorld() fresh",
+        "Calling ServerTravel on clients — only the server/authority can initiate map travel in multiplayer"
+      ],
+      "keyPoints": [
+        "Access: GetWorld() from any AActor, UActorComponent, or UObject with a world context",
+        "SpawnActor: GetWorld()->SpawnActor<T>(Class, &Location, &Rotation, SpawnParams)",
+        "Timers: GetWorld()->GetTimerManager() — SetTimer, ClearTimer, IsTimerActive",
+        "Line traces: GetWorld()->LineTraceSingleByChannel(), SweepSingleByChannel()",
+        "GetTimeSeconds(): total elapsed game time. GetDeltaSeconds(): time since last frame.",
+        "GetAuthGameMode<T>(): get the GameMode (server only). GetGameState<T>(): get the GameState.",
+        "GetFirstPlayerController(): shorthand for single-player games",
+        "ServerTravel(URL): travel to another map (server-initiated)",
+        "GetNumPlayerControllers(), GetPlayerControllerIterator(): iterate over players",
+        "ForEachActorInWorld<T>(): iterate over all actors of a type"
+      ],
+      "codeExample": "// Spawning an actor\nFActorSpawnParameters Params;\nParams.Owner = this;\nParams.Instigator = GetInstigator();\nAMyProjectile* Proj = GetWorld()->SpawnActor<AMyProjectile>(\n    ProjectileClass, SpawnLoc, SpawnRot, Params\n);\n\n// Timer\nFTimerHandle Handle;\nGetWorld()->GetTimerManager().SetTimer(Handle, this, &AMyActor::DoThing, 2.f, false);\n\n// Line trace\nFHitResult Hit;\nbool bHit = GetWorld()->LineTraceSingleByChannel(\n    Hit, Start, End, ECC_Visibility\n);\n\n// World time\nfloat ElapsedTime = GetWorld()->GetTimeSeconds();",
+      "tags": ["world", "spawn", "timer", "trace", "getworld", "travel", "game time"]
+    },
+    {
+      "id": "ref_core_006",
+      "title": "TSubclassOf, TSoftObjectPtr, and Asset References",
+      "description": "UE5 provides typed reference wrappers for class types and asset references. These are essential for designer-friendly configuration and memory-efficient asset loading.",
+      "whatItIs": "TSubclassOf, TSoftObjectPtr, and TSoftClassPtr are template wrapper types that provide type-safe references to UE5 classes and assets. They control when and how assets are loaded into memory, which is critical for managing load times, memory usage, and enabling designers to configure gameplay without code changes.",
+      "whenToUse": [
+        "TSubclassOf<T>: when designers need to pick a Blueprint class to spawn at runtime (enemy types, projectile types, widget classes)",
+        "TSoftObjectPtr<T>: when you need a reference to a specific asset (mesh, texture, sound) but don't want it loaded until actually needed",
+        "TSoftClassPtr<T>: when you need a soft reference to a Blueprint class (combines soft loading with class selection)",
+        "When you want to avoid large dependency chains that cause entire asset trees to load when one object is loaded",
+        "When building data-driven systems where designers configure which assets/classes to use per-instance"
+      ],
+      "whenNotToUse": [
+        "Don't use TSubclassOf when you already know the exact class at compile time — just use the concrete class directly",
+        "Don't use TSoftObjectPtr for assets that are always needed immediately — the async/lazy loading adds complexity for no benefit",
+        "Don't use ConstructorHelpers::FObjectFinder for assets that should be designer-configurable — it hardcodes paths in C++",
+        "Don't use raw UClass* when TSubclassOf is available — you lose type safety and get no editor filtering",
+        "Don't use hard references (raw pointers) for large assets like maps, cinematic sequences, or big meshes that aren't always needed"
+      ],
+      "relatedClasses": [
+        "UDataAsset",
+        "UPrimaryDataAsset",
+        "UAssetManager",
+        "FStreamableManager",
+        "FStreamableHandle",
+        "UObjectLibrary",
+        "UObject",
+        "UClass"
+      ],
+      "commonMistakes": [
+        "Using hard references everywhere and causing massive load times — one hard reference pulls in the entire dependency chain",
+        "Calling LoadSynchronous() on the game thread for large assets — causes frame hitches; use async loading instead",
+        "Forgetting to check if a soft reference is valid/loaded before using it — TSoftObjectPtr.Get() returns nullptr if not loaded",
+        "Storing ConstructorHelpers results in a variable instead of a static local — the finder runs every construction, not just once",
+        "Not understanding that TSubclassOf<AEnemy> accepts AEnemy and all its children — spawning with it may give unexpected subclasses if the designer picks one",
+        "Using TSoftObjectPtr in a hot loop without caching the loaded result — each .Get() has lookup overhead; load once and store the raw pointer"
+      ],
+      "keyPoints": [
+        "TSubclassOf<T>: a UClass* restricted to T and its children. Use for spawning configurable classes.",
+        "TSoftObjectPtr<T>: a lazy asset reference that doesn't load the asset until requested.",
+        "TSoftClassPtr<T>: like TSoftObjectPtr but for UClass assets (Blueprint classes).",
+        "LoadSynchronous(): loads a soft reference immediately (blocks). Use sparingly.",
+        "Async loading: use FStreamableManager or UAssetManager::AsyncLoad for non-blocking loads.",
+        "Hard references (UPROPERTY with raw pointer or TSubclassOf): asset loads when the owning object loads. Can cause large dependency chains.",
+        "Soft references: asset only loads when you explicitly request it. Reduces initial load times.",
+        "ConstructorHelpers::FObjectFinder<T>: finds an asset by path at construction time (editor/cook only)"
+      ],
+      "codeExample": "UCLASS()\nclass AMySpawner : public AActor {\n    GENERATED_BODY()\npublic:\n    // Designer picks which enemy class to spawn\n    UPROPERTY(EditAnywhere, Category=\"Spawning\")\n    TSubclassOf<AEnemy> EnemyClass;\n    \n    // Soft reference — doesn't load until needed\n    UPROPERTY(EditAnywhere, Category=\"Effects\")\n    TSoftObjectPtr<UParticleSystem> ExplosionEffect;\n    \n    void SpawnEnemy() {\n        if (EnemyClass) {\n            GetWorld()->SpawnActor<AEnemy>(EnemyClass, SpawnTransform);\n        }\n    }\n    \n    void PlayExplosion() {\n        UParticleSystem* Loaded = ExplosionEffect.LoadSynchronous();\n        if (Loaded) {\n            UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Loaded, GetActorLocation());\n        }\n    }\n};",
+      "tags": ["tsubclassof", "tsoftobjectptr", "tsoftclassptr", "asset reference", "soft reference", "loading", "constructor helpers"]
+    }
+  ]
+}

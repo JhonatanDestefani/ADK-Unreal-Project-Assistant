@@ -1,0 +1,98 @@
+{
+  "category": "structs-enums",
+  "displayName": "Structs & Enums",
+  "description": "UE5 USTRUCT and UENUM: declaring structs and enums for Blueprint exposure, serialization, replication, and data tables",
+  "entries": [
+    {
+      "id": "ref_se_001",
+      "title": "USTRUCT — Custom Structs",
+      "description": "USTRUCT declares a C++ struct visible to UE5's reflection system. Structs are value types used for grouping related data, DataTable rows, function parameters, and replicated data.",
+      "whatItIs": "A USTRUCT is a plain-old-data container with UE5 reflection support. Unlike UObjects, structs are value types (copied, not referenced), have no garbage collection overhead, and are ideal for lightweight data bundles passed between systems.",
+      "whenToUse": [
+        "Grouping related data fields together — FWeaponStats, FInventoryItem, FQuestData",
+        "DataTable row definitions — must inherit FTableRowBase",
+        "Function parameters when you need to pass multiple values — cleaner than 5+ parameters",
+        "Replicated data packets — structs can be replicated efficiently",
+        "Anywhere you need a lightweight data bundle without the overhead of a UObject"
+      ],
+      "whenNotToUse": [
+        "When you need garbage collection, polymorphism, or Blueprint subclassing — use UObject",
+        "When the data needs its own lifecycle (BeginPlay, Tick) — use UActorComponent",
+        "When you need inheritance hierarchies with virtual functions — structs support limited inheritance but no virtual dispatch",
+        "When the struct would hold UObject pointers that need GC tracking — use UPROPERTY on the struct fields"
+      ],
+      "relatedClasses": [
+        "FTableRowBase",
+        "FVector",
+        "FRotator",
+        "FTransform",
+        "FHitResult",
+        "FGameplayTag",
+        "FTimerHandle"
+      ],
+      "commonMistakes": [
+        "Forgetting GENERATED_BODY() in the struct — causes cryptic compilation errors",
+        "Not using UPROPERTY() on struct fields — they won't show in the editor, won't serialize, and won't replicate",
+        "Comparing structs with == without defining operator== — UE5 does not auto-generate it for USTRUCTs",
+        "Using raw UObject* pointers in structs without UPROPERTY — GC won't track them and the pointer will dangle",
+        "Not marking the struct as BlueprintType when it needs to be used in Blueprints",
+        "Inheriting from FTableRowBase for all structs — only needed for DataTable rows"
+      ],
+      "keyPoints": [
+        "USTRUCT(BlueprintType): makes the struct usable in Blueprints",
+        "GENERATED_BODY(): required macro inside every USTRUCT",
+        "UPROPERTY(EditAnywhere, BlueprintReadWrite): expose fields to editor and Blueprint",
+        "Can have UFUNCTION() member functions if the struct is marked BlueprintType",
+        "Structs are value types — assigning copies the data, not a reference",
+        "NetSerialize(): override for custom network serialization (optimization for replication)",
+        "FTableRowBase: inherit from this for DataTable row structs",
+        "Constructor: provide defaults in the constructor or with field initializers"
+      ],
+      "codeExample": "// Basic gameplay struct\nUSTRUCT(BlueprintType)\nstruct FWeaponStats {\n    GENERATED_BODY()\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    FText Name;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    float Damage = 25.f;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    float FireRate = 0.5f;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    int32 MaxAmmo = 30;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    TSubclassOf<AProjectile> ProjectileClass;\n};\n\n// DataTable row struct\nUSTRUCT(BlueprintType)\nstruct FItemRow : public FTableRowBase {\n    GENERATED_BODY()\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    FText DisplayName;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    TSoftObjectPtr<UTexture2D> Icon;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    int32 StackLimit = 99;\n};\n\n// Using a struct\nUPROPERTY(EditAnywhere)\nFWeaponStats CurrentWeapon;\n\nvoid Fire() {\n    float Dmg = CurrentWeapon.Damage;\n}",
+      "tags": ["ustruct", "struct", "blueprint type", "data", "value type", "generated body", "ftablerowbase"]
+    },
+    {
+      "id": "ref_se_002",
+      "title": "UENUM — Custom Enums",
+      "description": "UENUM declares a C++ enum visible to UE5's reflection system. Enums define named constants for states, types, categories — used in switch statements, Blueprint Select nodes, and UPROPERTY dropdowns.",
+      "whatItIs": "A UENUM is a reflected C++ enum (typically enum class) that integrates with UE5's editor, Blueprints, and serialization. UMETA tags provide display names and tooltips for each value.",
+      "whenToUse": [
+        "Defining discrete states — ECharacterState::Idle, Running, Attacking, Dead",
+        "Categorizing types — EWeaponType::Melee, Ranged, Magic",
+        "UPROPERTY dropdown selection — designers pick from a list in the editor",
+        "Blueprint Switch nodes — clean branching based on enum values",
+        "Replicated state that maps to a small set of named values"
+      ],
+      "whenNotToUse": [
+        "When you need a hierarchical or composable categorization — use Gameplay Tags instead",
+        "When the set of values changes at runtime or is data-driven — use FName or FGameplayTag",
+        "When you need more than ~50 values — enums get unwieldy; consider a DataTable lookup",
+        "When the values need associated data (name, icon, stats) — use an enum + DataTable or DataAsset"
+      ],
+      "relatedClasses": [
+        "UEnum",
+        "FGameplayTag",
+        "FGameplayTagContainer"
+      ],
+      "commonMistakes": [
+        "Using plain enum instead of enum class — plain enums pollute the namespace and can cause name collisions",
+        "Forgetting BlueprintType — the enum won't be usable in Blueprints",
+        "Not specifying uint8 as the underlying type — UE5 UPROPERTYs with enums require uint8 for Blueprint compatibility",
+        "Adding/removing/reordering enum values in a shipped game — breaks serialized save data. Add new values at the end.",
+        "Not providing UMETA(DisplayName) — the editor shows the raw C++ name which may be unclear to designers"
+      ],
+      "keyPoints": [
+        "UENUM(BlueprintType): makes the enum usable in Blueprints",
+        "enum class EMyEnum : uint8 — always use enum class with uint8 for Blueprint compatibility",
+        "UMETA(DisplayName=\"Friendly Name\"): sets the name shown in editor dropdowns",
+        "UMETA(Hidden): hides a value from Blueprint dropdowns (for internal-only values)",
+        "Use in UPROPERTY: UPROPERTY(EditAnywhere) EMyEnum MyValue;",
+        "Switch on enum: switch(MyValue) { case EMyEnum::Value1: ... }",
+        "UEnum::GetValueAsString(): convert enum to string for logging",
+        "MAX value convention: add a _MAX entry at the end for iteration/count"
+      ],
+      "codeExample": "// Enum declaration\nUENUM(BlueprintType)\nenum class ECharacterState : uint8 {\n    Idle        UMETA(DisplayName = \"Idle\"),\n    Running     UMETA(DisplayName = \"Running\"),\n    Attacking   UMETA(DisplayName = \"Attacking\"),\n    Dodging     UMETA(DisplayName = \"Dodging\"),\n    Dead        UMETA(DisplayName = \"Dead\"),\n};\n\nUENUM(BlueprintType)\nenum class EWeaponType : uint8 {\n    Melee       UMETA(DisplayName = \"Melee\"),\n    Ranged      UMETA(DisplayName = \"Ranged\"),\n    Magic       UMETA(DisplayName = \"Magic\"),\n    Explosive   UMETA(DisplayName = \"Explosive\"),\n};\n\n// Using in a class\nUPROPERTY(EditAnywhere, BlueprintReadWrite)\nECharacterState CurrentState = ECharacterState::Idle;\n\nUPROPERTY(EditAnywhere, BlueprintReadWrite)\nEWeaponType WeaponType;\n\n// Switch\nvoid AMyCharacter::UpdateBehavior() {\n    switch (CurrentState) {\n        case ECharacterState::Idle: PlayIdleAnim(); break;\n        case ECharacterState::Running: PlayRunAnim(); break;\n        case ECharacterState::Attacking: PlayAttackAnim(); break;\n        case ECharacterState::Dead: Ragdoll(); break;\n    }\n}\n\n// Logging enum value\nUE_LOG(LogTemp, Log, TEXT(\"State: %s\"), *UEnum::GetValueAsString(CurrentState));",
+      "tags": ["uenum", "enum", "enum class", "blueprint type", "umeta", "state", "category", "switch"]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "category": "patterns-abilities",
+  "displayName": "Patterns: Ability & Skill System",
+  "description": "Architectural patterns for building ability and skill systems — GAS path vs lightweight custom approach",
+  "entries": [
+    {
+      "id": "pat_ability_001",
+      "title": "Pattern: Ability System (GAS Path)",
+      "description": "How to structure your project when using the Gameplay Ability System. GAS is powerful but has a specific way it wants you to organize things. Follow this structure to avoid fighting the framework.",
+      "whatItIs": "The recommended architecture when you decide to use GAS. This is about where to put things and how the pieces connect — not how GAS itself works internally.",
+      "whenToUse": [
+        "RPGs, MOBAs, action games with many abilities, buffs/debuffs, and attribute-driven combat",
+        "Multiplayer games that need networked ability prediction out of the box",
+        "When you need stacking effects, cooldowns, costs, and tag-based ability interactions"
+      ],
+      "whenNotToUse": [
+        "Simple games with 1-3 abilities and no buff/debuff system — GAS is overkill",
+        "Tight deadlines with a team that has never used GAS — the learning curve is steep",
+        "Prototypes where iteration speed matters more than architecture"
+      ],
+      "keyPoints": [
+        "STEP 1 — Decide where the ASC lives. For singleplayer or simple multiplayer: put it on the Character. For games where pawns swap (respawn, vehicles): put it on PlayerState.",
+        "STEP 2 — Create your AttributeSets. Group attributes logically: UHealthAttributeSet (Health, MaxHealth, Armor), UCombatAttributeSet (AttackPower, CritChance). An ASC can have multiple sets.",
+        "STEP 3 — Implement IAbilitySystemInterface on the actor that owns the ASC AND on the pawn if the ASC is on PlayerState. This is how everything finds the ASC.",
+        "STEP 4 — Create a base UGameplayAbility subclass for your project. Add shared logic here: input binding helpers, common tag checks, commit patterns. All your abilities inherit from this, not from UGameplayAbility directly.",
+        "STEP 5 — Define your GameplayTag hierarchy early. Plan categories: Ability.Skill.*, Ability.Passive.*, State.Debuff.*, Cooldown.*, Input.* — tags drive everything in GAS.",
+        "STEP 6 — Grant abilities in PossessedBy (server) or OnRep_PlayerState (client). Use a TArray<TSubclassOf<UGameplayAbility>> on the character that designers fill in the editor.",
+        "STEP 7 — Bind abilities to Enhanced Input through AbilitySystemComponent input binding or through a custom input component that calls TryActivateAbility.",
+        "STEP 8 — For each ability: create the ability class (activation logic), a cost GE (what it costs), a cooldown GE (how long before reuse), and any effect GEs (what it does to the target).",
+        "STEP 9 — Handle attribute changes in PostGameplayEffectExecute on your AttributeSet. This is where you clamp health, trigger death, react to damage."
+      ],
+      "commonMistakes": [
+        "Skipping IAbilitySystemInterface — everything breaks silently because nothing can find your ASC",
+        "Forgetting InitGlobalData() in GameInstance — some GAS features won't work without it",
+        "Not planning your tag hierarchy early — retrofitting tags later is painful and error-prone",
+        "Putting GAS-specific logic in the Character instead of in Abilities and Effects — the Character should be thin",
+        "Granting abilities before the ASC is initialized — call InitAbilityActorInfo first",
+        "Using GAS for things that don't need it (opening a door, picking up an item) — not everything is an ability"
+      ],
+      "goodPractices": [
+        "Your Character class should be thin — it owns the ASC and grants abilities, but the real logic lives in Ability and Effect classes",
+        "One base GameplayAbility class for your project — shared patterns like CommitAbility, tag checks, montage helpers",
+        "Design GameplayEffects in Blueprints — they're data-driven and designers can tune them without code",
+        "Use GameplayTags as the communication layer between abilities — avoid direct ability-to-ability references",
+        "Create a debug HUD early that shows active tags, effects, and attribute values — GAS is hard to debug blind",
+        "Keep AbilityTasks for async operations (wait for montage, wait for target data) — don't poll in Tick inside abilities"
+      ],
+      "relatedClasses": [
+        "UAbilitySystemComponent",
+        "UGameplayAbility",
+        "UGameplayEffect",
+        "UAttributeSet",
+        "FGameplayTag",
+        "FGameplayTagContainer",
+        "IAbilitySystemInterface",
+        "UAbilityTask"
+      ],
+      "codeExample": "// Step 1 & 3: Character with ASC + IAbilitySystemInterface\nclass AMyCharacter : public ACharacter, public IAbilitySystemInterface\n{\n    GENERATED_BODY()\npublic:\n    AMyCharacter();\n    virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;\n\n    UPROPERTY(VisibleAnywhere, BlueprintReadOnly)\n    UAbilitySystemComponent* AbilitySystemComponent;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = \"GAS\")\n    TArray<TSubclassOf<UGameplayAbility>> DefaultAbilities;\n\nprotected:\n    virtual void PossessedBy(AController* NewController) override;\n    void GiveDefaultAbilities();\n};\n\n// Step 2: AttributeSet\nUCLASS()\nclass UMyAttributeSet : public UAttributeSet\n{\n    GENERATED_BODY()\npublic:\n    UPROPERTY(ReplicatedUsing=OnRep_Health, BlueprintReadOnly, Category = \"Attributes\")\n    FGameplayAttributeData Health;\n    ATTRIBUTE_ACCESSORS(UMyAttributeSet, Health)\n\n    UPROPERTY(ReplicatedUsing=OnRep_MaxHealth, BlueprintReadOnly, Category = \"Attributes\")\n    FGameplayAttributeData MaxHealth;\n    ATTRIBUTE_ACCESSORS(UMyAttributeSet, MaxHealth)\n\nprotected:\n    virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;\n};\n\n// Step 6: Grant abilities on the server\nvoid AMyCharacter::PossessedBy(AController* NewController)\n{\n    Super::PossessedBy(NewController);\n    AbilitySystemComponent->InitAbilityActorInfo(this, this);\n    GiveDefaultAbilities();\n}\n\nvoid AMyCharacter::GiveDefaultAbilities()\n{\n    if (!HasAuthority()) return;\n    for (auto& AbilityClass : DefaultAbilities)\n    {\n        AbilitySystemComponent->GiveAbility(\n            FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));\n    }\n}",
+      "tags": ["pattern", "gas", "ability", "gameplay ability system", "architecture", "how to build", "structure", "attribute", "effect"]
+    },
+    {
+      "id": "pat_ability_002",
+      "title": "Pattern: Lightweight Ability System (Without GAS)",
+      "description": "How to structure a simple custom ability system when GAS is overkill. Uses components, enums, and cooldown timers for a small set of abilities.",
+      "whatItIs": "A minimal ability architecture for games with a handful of abilities that don't need the full GAS framework. Trades flexibility for simplicity and fast iteration.",
+      "whenToUse": [
+        "Games with 3-10 abilities that don't interact with each other in complex ways",
+        "Platformers, shooters, or action games where abilities are simple (dash, double jump, ground slam)",
+        "Prototypes where you need abilities working in days, not weeks",
+        "When the team doesn't know GAS and the project deadline is tight"
+      ],
+      "whenNotToUse": [
+        "Games with 20+ abilities, stacking buffs/debuffs, and complex tag-based interactions — use GAS",
+        "Multiplayer RPGs where ability prediction and replication are critical — GAS handles this",
+        "When you know you'll need GAS features eventually — better to start with GAS than migrate later"
+      ],
+      "keyPoints": [
+        "STEP 1 — Create a UAbilityComponent (inherits UActorComponent). It manages a TArray of ability instances and handles activation/cooldowns.",
+        "STEP 2 — Define abilities as UObject subclasses (not Actors). Each ability has: Activate(), Deactivate(), CanActivate(), CooldownDuration, and an AbilityTag or enum identifier.",
+        "STEP 3 — Cooldowns are simple FTimerHandles on the ability. When activated, start a timer. CanActivate checks if the timer is active.",
+        "STEP 4 — The AbilityComponent exposes TryActivateAbility(Tag/Enum). It finds the ability, checks CanActivate, and calls Activate. Input binds to this.",
+        "STEP 5 — For costs (mana, stamina): the ability checks a resource value on the owning actor before activating. Keep resource management separate from the ability system.",
+        "STEP 6 — For effects on targets: abilities call ApplyDamage or directly modify target components. No need for a GE-like system unless you're building one."
+      ],
+      "commonMistakes": [
+        "Building a 'lightweight' system that slowly grows into a bad reimplementation of GAS — if you keep adding features, switch to GAS",
+        "Storing ability state on the character instead of on the ability object — each ability should own its own state",
+        "Not having a CanActivate check — leads to ability spamming and broken state",
+        "Hardcoding ability behavior in the component — the component manages, abilities decide what they do"
+      ],
+      "goodPractices": [
+        "Keep it simple — if you're adding tag systems, effect stacking, or prediction, you're rebuilding GAS",
+        "Each ability is self-contained: owns its cooldown, knows its cost, executes its effect",
+        "The component is just a manager: holds abilities, routes input, checks activation",
+        "Use Blueprint subclasses for specific abilities so designers can create new ones without code"
+      ],
+      "relatedClasses": [
+        "UActorComponent",
+        "UObject",
+        "FTimerHandle",
+        "FTimerManager",
+        "UGameplayStatics"
+      ],
+      "codeExample": "// AbilityBase.h — base class for all abilities\nUCLASS(Blueprintable)\nclass UAbilityBase : public UObject\n{\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    FName AbilityName;\n\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    float CooldownDuration = 1.f;\n\n    UFUNCTION(BlueprintCallable)\n    bool TryActivate(AActor* Owner);\n\n    UFUNCTION(BlueprintNativeEvent)\n    bool CanActivate(AActor* Owner);\n\n    UFUNCTION(BlueprintNativeEvent)\n    void Execute(AActor* Owner);\n\n    bool IsOnCooldown() const { return GetWorld()->GetTimerManager().IsTimerActive(CooldownTimer); }\n\nprotected:\n    FTimerHandle CooldownTimer;\n};\n\n// AbilityBase.cpp\nbool UAbilityBase::TryActivate(AActor* Owner)\n{\n    if (!CanActivate(Owner)) return false;\n    Execute(Owner);\n    // Start cooldown\n    Owner->GetWorldTimerManager().SetTimer(CooldownTimer, CooldownDuration, false);\n    return true;\n}\n\nbool UAbilityBase::CanActivate_Implementation(AActor* Owner)\n{\n    return !IsOnCooldown();\n}\n\n// AbilityComponent.h — manages abilities on an Actor\nUCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))\nclass UAbilityComponent : public UActorComponent\n{\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditDefaultsOnly, Category = \"Abilities\")\n    TArray<TSubclassOf<UAbilityBase>> DefaultAbilityClasses;\n\n    UFUNCTION(BlueprintCallable)\n    bool ActivateAbilityByName(FName Name);\n\nprotected:\n    virtual void BeginPlay() override;\n    UPROPERTY()\n    TArray<UAbilityBase*> Abilities;\n};",
+      "tags": ["pattern", "ability", "skill", "lightweight", "simple", "custom", "no gas", "how to build", "structure"]
+    }
+  ]
+}

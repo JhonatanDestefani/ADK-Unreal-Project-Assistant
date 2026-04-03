@@ -1,0 +1,52 @@
+{
+  "category": "chaos-destruction",
+  "displayName": "Chaos Destruction",
+  "description": "UE5 Chaos destruction: Geometry Collections, fracture meshes, damage thresholds, destruction events, and physics-based breakable objects",
+  "entries": [
+    {
+      "id": "ref_chaos_001",
+      "title": "Chaos Destruction & Geometry Collections",
+      "description": "Chaos Destruction lets you create breakable objects that fracture into pieces when damaged. Geometry Collections define the fracture pattern, and the Chaos physics engine simulates the breaking and scattering of debris.",
+      "whatItIs": "The Chaos Destruction system uses Geometry Collection assets that pre-fracture static meshes into clustered pieces. At runtime, when a damage threshold is exceeded, the clusters break apart and become individually simulated physics bodies. This enables walls crumbling, pillars shattering, vehicles breaking, and environmental destruction.",
+      "whenToUse": [
+        "Destructible walls, pillars, crates, barrels, or cover objects that break from gunfire or explosions",
+        "Environmental storytelling through destruction — buildings collapsing, bridges breaking",
+        "Gameplay mechanics that involve breaking through barriers or creating new paths",
+        "Visual spectacle — explosive set pieces with debris and rubble"
+      ],
+      "whenNotToUse": [
+        "Simple objects that just need to disappear on hit — just Destroy() the actor and spawn debris VFX",
+        "When you need the destruction to be replicated in multiplayer — Chaos destruction replication is expensive and limited",
+        "For tiny destructibles that don't need realistic fracture — spawn pre-made debris meshes with physics impulse instead",
+        "When memory is tight — Geometry Collections store all fracture data in memory"
+      ],
+      "relatedClasses": [
+        "UGeometryCollectionComponent",
+        "UGeometryCollection",
+        "AGeometryCollectionActor",
+        "UChaosDestructionListener",
+        "FGeometryCollectionEdit",
+        "UFieldSystemComponent"
+      ],
+      "commonMistakes": [
+        "Not setting damage thresholds on the Geometry Collection — everything breaks on the slightest touch",
+        "Over-fracturing meshes into too many pieces — tanks performance when they all become physics bodies",
+        "Not using clustering — without cluster levels, all pieces break at once instead of progressive destruction",
+        "Forgetting to set the mesh to Movable mobility — static mobility prevents physics simulation",
+        "Not using Field System actors to apply damage — direct ApplyDamage doesn't trigger Chaos fracture by default"
+      ],
+      "keyPoints": [
+        "Geometry Collection: asset that stores the fractured mesh data. Create: right-click mesh > Create Geometry Collection.",
+        "Fracture modes: Voronoi (random), Plane Cut, Cluster Voronoi, Radial — set in the Fracture Editor.",
+        "Damage Threshold: minimum damage needed to break a cluster. Set per-level in the Geometry Collection.",
+        "Cluster levels: multi-level fracture — large pieces break into smaller pieces on further hits.",
+        "AGeometryCollectionActor: place in the level. Contains a GeometryCollectionComponent.",
+        "Field System: actors that apply forces, damage, or anchoring to Geometry Collections.",
+        "Anchor fields: keep certain pieces (e.g., the base of a wall) static until broken.",
+        "OnChaosBreakEvent: event fired when pieces break — use for sound, VFX, gameplay reactions."
+      ],
+      "codeExample": "// Spawn a geometry collection at runtime\nUPROPERTY(EditAnywhere)\nUGeometryCollection* WallGeometry;\n\nvoid AMySpawner::SpawnDestructibleWall(FVector Location) {\n    AGeometryCollectionActor* Wall = GetWorld()->SpawnActor<AGeometryCollectionActor>(Location, FRotator::ZeroRotator);\n    if (Wall) {\n        Wall->GetGeometryCollectionComponent()->SetRestCollection(WallGeometry);\n    }\n}\n\n// Apply damage to trigger fracture (using Field System)\n// In level: place a Field System Actor with a Radial Falloff + External Strain field\n// Or from C++:\nvoid AMyWeapon::DamageDestructible(FVector HitLocation) {\n    // Use a radial force to trigger Chaos destruction\n    URadialForceComponent* RadialForce = NewObject<URadialForceComponent>(this);\n    RadialForce->SetWorldLocation(HitLocation);\n    RadialForce->Radius = 200.f;\n    RadialForce->ImpulseStrength = 10000.f;\n    RadialForce->bImpulseVelChange = true;\n    RadialForce->RegisterComponent();\n    RadialForce->FireImpulse();\n    RadialForce->DestroyComponent();\n}",
+      "tags": ["chaos", "destruction", "geometry collection", "fracture", "voronoi", "breakable", "debris", "physics"]
+    }
+  ]
+}

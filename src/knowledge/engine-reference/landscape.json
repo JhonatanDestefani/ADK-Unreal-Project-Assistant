@@ -1,0 +1,54 @@
+{
+  "category": "landscape",
+  "displayName": "Landscape & Terrain",
+  "description": "UE5 landscape: terrain creation, sculpting, painting layers, grass type, landscape materials, and landscape proxies",
+  "entries": [
+    {
+      "id": "ref_land_001",
+      "title": "Landscape System Overview",
+      "description": "The Landscape system creates large-scale outdoor terrain with sculpting, material painting, foliage, and optimized rendering. It supports Nanite (UE5.4+) and World Partition for massive worlds.",
+      "whatItIs": "ALandscapeProxy is UE5's terrain system that renders large outdoor environments using a heightmap-based mesh. It provides sculpting tools for shaping terrain, a layer-based painting system for applying multiple materials (grass, rock, dirt), and integration with foliage, NavMesh, and World Partition.",
+      "whenToUse": [
+        "Outdoor environments with rolling hills, mountains, valleys, or plains",
+        "Large open-world terrain that needs efficient LOD and streaming",
+        "When you need to paint multiple surface types (grass, rock, sand, snow) with blending",
+        "When you need runtime grass spawning via Grass Type associated with landscape layers"
+      ],
+      "whenNotToUse": [
+        "Indoor environments or small rooms — use static meshes and BSP instead",
+        "Vertical surfaces like cave walls or cliffs (as primary geometry) — landscape is a heightmap, not volumetric",
+        "When you need destructible terrain at runtime — landscape doesn't support runtime modification of the heightmap in shipping builds easily",
+        "Extremely small playable areas — the minimum landscape resolution is overkill for small scenes"
+      ],
+      "relatedClasses": [
+        "ALandscapeProxy",
+        "ALandscape",
+        "ALandscapeStreamingProxy",
+        "ULandscapeComponent",
+        "ULandscapeInfo",
+        "ULandscapeGrassType",
+        "ULandscapeLayerInfoObject",
+        "UMaterialExpressionLandscapeLayerBlend"
+      ],
+      "commonMistakes": [
+        "Choosing the wrong landscape resolution — too many components = slow rendering, too few = blocky terrain. Start with recommended sizes (63x63 quads per component).",
+        "Not setting up landscape layers in the material before trying to paint — the Paint mode won't show layers without a proper Landscape Layer Blend node",
+        "Forgetting to create LayerInfo objects for each layer — required before painting a layer for the first time",
+        "Using tessellation instead of Nanite for landscape detail (UE5.4+) — Nanite landscape is more efficient",
+        "Not using World Partition with large landscapes — causes memory issues from loading the entire landscape at once"
+      ],
+      "keyPoints": [
+        "Create: Landscape Mode (Shift+2) > Manage > New Landscape. Set resolution and component count.",
+        "Sculpt: raise, lower, flatten, smooth, erosion tools for shaping the terrain heightmap",
+        "Paint: apply landscape layers (materials) using paint brushes. Each layer uses a LayerInfo object.",
+        "Landscape Material: use LandscapeLayerBlend node to blend between multiple material layers based on painted weights",
+        "Grass Type: ULandscapeGrassType spawns grass meshes procedurally based on layer paint density",
+        "Components: landscape is split into components for streaming. Each component has its own LOD.",
+        "Nanite support (UE5.4+): landscape can use Nanite for virtualized geometry LOD",
+        "Collision: landscape provides collision automatically. Use ECC_WorldStatic for traces."
+      ],
+      "codeExample": "// Query landscape height at a world location\nvoid AMyActor::GetTerrainHeight(FVector Location) {\n    FHitResult Hit;\n    FVector Start = FVector(Location.X, Location.Y, 10000.f);\n    FVector End = FVector(Location.X, Location.Y, -10000.f);\n    \n    FCollisionQueryParams Params;\n    // Only hit landscape\n    if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic, Params)) {\n        if (Hit.GetActor() && Hit.GetActor()->IsA<ALandscapeProxy>()) {\n            float TerrainHeight = Hit.ImpactPoint.Z;\n        }\n    }\n}\n\n// Check which landscape layer is painted at a location\n// (typically done via the landscape material's layer weights)",
+      "tags": ["landscape", "terrain", "sculpt", "paint", "layer", "grass", "heightmap", "outdoor"]
+    }
+  ]
+}

@@ -1,0 +1,145 @@
+{
+  "category": "data-assets",
+  "displayName": "Data Tables, Data Assets & Curves",
+  "description": "UE5 data-driven design: DataTables, DataAssets, PrimaryDataAssets, CurveFloats, and the Asset Manager",
+  "entries": [
+    {
+      "id": "ref_data_001",
+      "title": "Data Tables",
+      "description": "Data Tables are spreadsheet-like assets that store rows of structured data. Each row is a struct. Designers can edit values in the editor without touching code. Essential for items, weapons, enemies, levels, dialogue, etc.",
+      "whatItIs": "A Data Table is a UE5 asset that stores an array of rows where each row is an instance of a user-defined USTRUCT derived from FTableRowBase. It acts like a spreadsheet keyed by row name, editable in-editor or importable from CSV/JSON.",
+      "whenToUse": [
+        "Storing large collections of similar items with the same fields (weapons, items, enemies, dialogue lines)",
+        "When designers need to bulk-edit game data in a spreadsheet-like interface or import from external tools",
+        "When you want to look up a specific row by name at runtime (e.g., item ID to stats)",
+        "When importing balance data from external CSV or JSON files maintained by designers"
+      ],
+      "whenNotToUse": [
+        "Complex objects that have nested sub-objects, asset references, or polymorphic data — use Data Assets instead",
+        "When each entry is highly unique with different fields — Data Tables require all rows to share the same struct",
+        "When you need Blueprint-scriptable logic per entry — Data Table rows are plain structs, not UObjects",
+        "Very small datasets (1-3 entries) where individual Data Assets or config variables are simpler"
+      ],
+      "relatedClasses": [
+        "UDataTable",
+        "FTableRowBase",
+        "FDataTableRowHandle",
+        "UGameplayStatics",
+        "UDataAsset",
+        "UCurveTable"
+      ],
+      "commonMistakes": [
+        "Forgetting to derive the row struct from FTableRowBase — the editor will not let you select it as a row type",
+        "Using hard object references (UStaticMesh*) in rows instead of soft references (TSoftObjectPtr), causing the entire table to load all referenced assets into memory",
+        "Not checking the return value of FindRow() for nullptr — the row name may not exist",
+        "Editing Data Tables at runtime and expecting changes to persist — runtime modifications are lost unless explicitly saved",
+        "Creating a new Data Table row struct for every table instead of reusing common base structs"
+      ],
+      "keyPoints": [
+        "Row struct: subclass FTableRowBase with UPROPERTY fields. This defines the columns.",
+        "Create DataTable: Content Browser > Miscellaneous > Data Table, select your row struct.",
+        "Edit in editor: double-click to open the table editor. Add/remove/edit rows.",
+        "Import from CSV/JSON: File > Import to create or update a DataTable from external data.",
+        "C++ lookup: DataTable->FindRow<FMyRow>(RowName, ContextString). Returns pointer to row or nullptr.",
+        "GetAllRows<FMyRow>(): get all rows as an array",
+        "FDataTableRowHandle: a UPROPERTY-friendly reference to a specific row in a specific table",
+        "Blueprint: use Get Data Table Row node with row name",
+        "Common use cases: item definitions, weapon stats, XP curves, dialogue lines, quest data"
+      ],
+      "codeExample": "// Row struct\nUSTRUCT(BlueprintType)\nstruct FWeaponData : public FTableRowBase {\n    GENERATED_BODY()\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    FText DisplayName;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    float Damage;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    float FireRate;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    TSoftObjectPtr<UStaticMesh> WeaponMesh;\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    TSubclassOf<AProjectile> ProjectileClass;\n};\n\n// Looking up a row\nvoid AMyWeapon::LoadWeaponData(FName WeaponID) {\n    if (FWeaponData* Row = WeaponTable->FindRow<FWeaponData>(WeaponID, TEXT(\"LoadWeapon\"))) {\n        Damage = Row->Damage;\n        FireRate = Row->FireRate;\n    }\n}\n\n// Get all rows\nTArray<FWeaponData*> AllWeapons;\nWeaponTable->GetAllRows<FWeaponData>(TEXT(\"\"), AllWeapons);",
+      "tags": ["data table", "row", "struct", "csv", "lookup", "findrow", "designer", "spreadsheet"]
+    },
+    {
+      "id": "ref_data_002",
+      "title": "Data Assets & Primary Data Assets",
+      "description": "Data Assets are UObject assets that store gameplay configuration. Unlike DataTables (spreadsheet), they are individual assets with full Blueprint/C++ support. PrimaryDataAssets add asset management capabilities.",
+      "whatItIs": "UDataAsset is a lightweight UObject-based asset for storing configuration data as individual .uasset files. UPrimaryDataAsset extends it with Asset Manager integration, giving each asset a unique PrimaryAssetId for async loading and bundle management.",
+      "whenToUse": [
+        "Defining complex game entities with nested data, asset references, and polymorphic fields (character classes, ability definitions)",
+        "When each entry is unique enough to warrant its own asset file that can be independently versioned and referenced",
+        "When you need the Asset Manager to asynchronously discover, load, and unload data at runtime",
+        "When Blueprints need to directly reference a specific data definition as a UPROPERTY"
+      ],
+      "whenNotToUse": [
+        "Large collections of homogeneous items (100+ weapons with the same fields) — Data Tables are more efficient and easier to bulk-edit",
+        "When you just need a simple key-value config — a Data Table or project settings may be simpler",
+        "Temporary runtime data that does not need to be an asset on disk",
+        "When the data will be imported from CSV/Excel — Data Tables support this natively, Data Assets do not"
+      ],
+      "relatedClasses": [
+        "UDataAsset",
+        "UPrimaryDataAsset",
+        "UAssetManager",
+        "FPrimaryAssetId",
+        "FPrimaryAssetType",
+        "FStreamableHandle",
+        "UDataTable"
+      ],
+      "commonMistakes": [
+        "Using UDataAsset when UPrimaryDataAsset is needed — without PrimaryAssetId, the Asset Manager cannot discover or async-load the asset",
+        "Forgetting to override GetPrimaryAssetId() in PrimaryDataAsset subclasses, causing the asset to not register with the Asset Manager",
+        "Not configuring the Asset Manager scan paths in DefaultGame.ini for your PrimaryDataAsset types",
+        "Storing large runtime state in Data Assets — they are meant for static configuration, not mutable game state",
+        "Hard-referencing Data Assets everywhere instead of using soft references or the Asset Manager, defeating the purpose of async loading"
+      ],
+      "keyPoints": [
+        "UDataAsset: simple data container. Create subclass, add UPROPERTY fields.",
+        "Create instances: Content Browser > Miscellaneous > Data Asset, select your class.",
+        "Each instance is its own .uasset file — good for complex items with nested data.",
+        "UPrimaryDataAsset: extends UDataAsset with Asset Manager integration (async loading, bundles).",
+        "PrimaryAssetId: unique identifier (Type:Name) used by the Asset Manager for loading.",
+        "Override GetPrimaryAssetId() to define the asset type.",
+        "Asset Manager: scans for primary data assets and can load/unload them asynchronously.",
+        "Data Assets vs Data Tables: use tables for many similar items (100+ weapons), use assets for complex unique items (character classes, ability definitions)"
+      ],
+      "codeExample": "// Simple Data Asset for character class definition\nUCLASS()\nclass UCharacterClassData : public UPrimaryDataAsset {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    FText ClassName;\n    \n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    float BaseHealth;\n    \n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    float BaseMana;\n    \n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    TArray<TSubclassOf<UGameplayAbility>> StartingAbilities;\n    \n    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)\n    TSubclassOf<ACharacter> CharacterClass;\n    \n    virtual FPrimaryAssetId GetPrimaryAssetId() const override {\n        return FPrimaryAssetId(\"CharacterClass\", GetFName());\n    }\n};\n\n// Reference in other classes\nUPROPERTY(EditAnywhere)\nUCharacterClassData* SelectedClass;",
+      "tags": ["data asset", "primary data asset", "asset manager", "configuration", "uasset", "primary asset id"]
+    },
+    {
+      "id": "ref_data_003",
+      "title": "Curve Assets (Float, Vector, Color)",
+      "description": "Curve assets define values that change over time or over a parameter. Used for damage falloff, animation blending, difficulty scaling, color gradients, and more.",
+      "whatItIs": "Curve assets are UE5 assets that map a float input to a float, vector, or color output via editable keyframe curves. They let designers visually author non-linear relationships (e.g., distance to damage multiplier) without code changes.",
+      "whenToUse": [
+        "Any gameplay value that varies non-linearly over a parameter — damage falloff by distance, difficulty scaling over time, speed over input",
+        "When designers need to visually tune a relationship curve without recompiling",
+        "Animation blending, camera shake intensity, audio volume curves",
+        "When you want to reuse the same curve across multiple systems via asset references"
+      ],
+      "whenNotToUse": [
+        "Simple linear interpolation between two values — just use FMath::Lerp instead of a full curve asset",
+        "Boolean or discrete state transitions — curves are for continuous values",
+        "When the mapping is a simple lookup table with exact values — a Data Table may be clearer",
+        "Extremely high-frequency sampling (thousands per frame) where curve evaluation overhead matters"
+      ],
+      "relatedClasses": [
+        "UCurveFloat",
+        "UCurveVector",
+        "UCurveLinearColor",
+        "FRuntimeFloatCurve",
+        "FRichCurve",
+        "UCurveTable",
+        "UTimelineComponent"
+      ],
+      "commonMistakes": [
+        "Forgetting to null-check the curve pointer before calling GetFloatValue() — crashes if the curve asset is not assigned",
+        "Using FRuntimeFloatCurve but never assigning it in the editor, resulting in a flat curve returning 0",
+        "Setting curve keys with incorrect tangent modes (auto vs linear vs constant) and getting unexpected interpolation",
+        "Creating separate curve assets when FRuntimeFloatCurve (inline editable) would be simpler and avoid extra asset management",
+        "Sampling a curve outside its defined key range without understanding the extrapolation behavior (clamp vs linear vs constant)"
+      ],
+      "keyPoints": [
+        "UCurveFloat: maps a float input to a float output via a curve. The most commonly used.",
+        "UCurveVector: maps float input to FVector output (3 curves for X, Y, Z).",
+        "UCurveLinearColor: maps float input to FLinearColor (4 curves for R, G, B, A).",
+        "Create: Content Browser > Miscellaneous > Curve > select type.",
+        "GetFloatValue(Time): sample the curve at a given time/parameter value.",
+        "Keyframes: add points in the curve editor. Control tangents for sharp or smooth curves.",
+        "External curves: use in Niagara, Materials, Timelines, and code.",
+        "FRuntimeFloatCurve: UPROPERTY-editable curve that can be inline (no separate asset) or reference an asset."
+      ],
+      "codeExample": "// Damage falloff curve (distance → damage multiplier)\nUPROPERTY(EditAnywhere, Category=\"Damage\")\nUCurveFloat* DamageFalloffCurve;\n\nfloat AMyWeapon::CalculateDamage(float Distance) {\n    float Multiplier = 1.f;\n    if (DamageFalloffCurve) {\n        Multiplier = DamageFalloffCurve->GetFloatValue(Distance);\n    }\n    return BaseDamage * Multiplier;\n}\n\n// Inline editable curve (no separate asset needed)\nUPROPERTY(EditAnywhere, Category=\"Scaling\")\nFRuntimeFloatCurve DifficultyCurve;\n\nfloat GetDifficultyMultiplier(float GameTime) {\n    if (const FRichCurve* Curve = DifficultyCurve.GetRichCurveConst()) {\n        return Curve->Eval(GameTime);\n    }\n    return 1.f;\n}",
+      "tags": ["curve", "float curve", "vector curve", "color curve", "falloff", "timeline", "keyframe", "runtime"]
+    }
+  ]
+}

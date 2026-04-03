@@ -1,0 +1,188 @@
+{
+  "category": "timers-delegates",
+  "displayName": "Timers & Delegates",
+  "description": "UE5 timer system and delegate/event system: FTimerHandle, SetTimer, ClearTimer, single/multicast delegates, and dynamic delegates",
+  "entries": [
+    {
+      "id": "ref_td_001",
+      "title": "Timers — FTimerManager",
+      "description": "Timers let you call a function after a delay or on a repeating interval without using Tick. They are managed by the World's TimerManager and are the preferred way to handle delayed/periodic actions.",
+      "whatItIs": "The FTimerManager system that schedules function calls after a delay or on a repeating interval, tied to the game world's time. Timers are managed per-world and automatically respect game pause, providing a clean alternative to Tick-based countdown logic.",
+      "whenToUse": [
+        "Delaying an action by a set amount of time (respawn after 3 seconds, ability cooldown)",
+        "Running periodic logic at a fixed interval (damage-over-time every 0.5s, health regeneration tick)",
+        "Replacing manual countdown variables in Tick with a cleaner, event-driven approach",
+        "Scheduling one-frame-delayed initialization with SetTimerForNextTick"
+      ],
+      "whenNotToUse": [
+        "When you need per-frame logic that runs every single Tick — just use Tick directly",
+        "For precise frame-accurate timing in animation — use AnimNotifies or timeline curves instead",
+        "When the timer rate is the same as your Tick rate — the overhead of a timer adds no benefit",
+        "For UI animations or widget transitions — use UMG animations or FTimeline in Blueprints"
+      ],
+      "relatedClasses": [
+        "FTimerManager",
+        "FTimerHandle",
+        "FTimerDelegate",
+        "UWorld",
+        "UGameplayStatics",
+        "FTimerUnifiedDelegate"
+      ],
+      "commonMistakes": [
+        "Not storing the FTimerHandle, making it impossible to cancel or query the timer later",
+        "Forgetting that timers pause when the game is paused — if you need a timer that runs during pause, use SetTimerForNextTick or real-time timers",
+        "Setting a looping timer without ever clearing it, causing it to fire forever even after the owning logic is no longer relevant",
+        "Calling SetTimer with the same FTimerHandle without clearing the old one first — this replaces the old timer silently",
+        "Capturing 'this' in a lambda timer without ensuring the object stays alive, leading to crashes when the timer fires after the object is garbage collected"
+      ],
+      "keyPoints": [
+        "GetWorldTimerManager() or GetWorld()->GetTimerManager(): access the timer manager",
+        "SetTimer(Handle, Object, &Method, Rate, bLoop): schedule a function call",
+        "SetTimer with lambda: SetTimer(Handle, [this](){ DoThing(); }, Rate, bLoop)",
+        "ClearTimer(Handle): cancel a pending timer",
+        "IsTimerActive(Handle): check if a timer is still running",
+        "GetTimerRemaining(Handle): time left until next fire",
+        "GetTimerElapsed(Handle): time since last fire",
+        "PauseTimer(Handle) / UnPauseTimer(Handle): suspend/resume without clearing",
+        "Timers are paused when the game is paused. Use SetTimerForNextTick() for one-frame delay.",
+        "FTimerHandle: store this to reference the timer later. Needed for Clear/Pause/Query."
+      ],
+      "codeExample": "// Delayed function call (2 seconds, non-looping)\nFTimerHandle RespawnHandle;\nGetWorldTimerManager().SetTimer(RespawnHandle, this, &AMyGameMode::RespawnPlayer, 2.0f, false);\n\n// Repeating timer (every 0.5 seconds)\nFTimerHandle DamageHandle;\nGetWorldTimerManager().SetTimer(DamageHandle, this, &AMyTrap::ApplyDOT, 0.5f, true);\n\n// Lambda timer\nFTimerHandle LambdaHandle;\nGetWorldTimerManager().SetTimer(LambdaHandle, [this]() {\n    Health -= 10.f;\n    if (Health <= 0.f) {\n        GetWorldTimerManager().ClearTimer(LambdaHandle);\n        Die();\n    }\n}, 1.0f, true);\n\n// Cancel\nGetWorldTimerManager().ClearTimer(DamageHandle);\n\n// Check\nif (GetWorldTimerManager().IsTimerActive(RespawnHandle)) {\n    float Remaining = GetWorldTimerManager().GetTimerRemaining(RespawnHandle);\n}",
+      "tags": ["timer", "settimer", "cleartimer", "delay", "repeating", "timer manager", "ftimerhandle"]
+    },
+    {
+      "id": "ref_td_002",
+      "title": "Delegates — Single-Cast",
+      "description": "Single-cast delegates bind to ONE function. They are type-safe function pointers used for callbacks, strategy pattern, and loose coupling between systems.",
+      "whatItIs": "A type-safe, single-binding function pointer that can be bound to exactly one function at a time. Single-cast delegates are declared with DECLARE_DELEGATE macros and are used for callbacks, completion handlers, and the strategy pattern where one caller expects one response.",
+      "whenToUse": [
+        "Implementing a callback pattern where exactly one listener handles the result (async task completion, request/response)",
+        "Strategy pattern — injecting behavior into a class by binding different functions at runtime",
+        "When a function needs to return a value via delegate (DECLARE_DELEGATE_RetVal)",
+        "Loose coupling between two systems where only one subscriber is needed"
+      ],
+      "whenNotToUse": [
+        "When multiple listeners need to respond to the same event — use multicast delegates instead",
+        "When Blueprint needs to bind to the delegate — use dynamic delegates instead",
+        "For events that are conceptually 'broadcasts' with zero or many subscribers",
+        "When you need the delegate to be saved/serialized — use dynamic delegates"
+      ],
+      "relatedClasses": [
+        "TDelegate",
+        "TBaseDelegate",
+        "FScriptDelegate",
+        "TMulticastDelegate",
+        "TBaseDynamicDelegate"
+      ],
+      "commonMistakes": [
+        "Calling Execute() instead of ExecuteIfBound() when the delegate might not be bound, causing a crash",
+        "Forgetting that binding a new function replaces the previous binding — there is no stacking with single-cast",
+        "Not calling Unbind() when the bound object is about to be destroyed, risking a dangling pointer (though BindUObject is GC-safe)",
+        "Using single-cast when the design actually needs multiple listeners, then refactoring to multicast later",
+        "Declaring delegates with too many parameters (up to 9 supported) instead of passing a struct"
+      ],
+      "keyPoints": [
+        "DECLARE_DELEGATE(): no params. DECLARE_DELEGATE_OneParam(Name, Type1): one param. Up to 9 params.",
+        "DECLARE_DELEGATE_RetVal(ReturnType, Name): delegate with return value",
+        "BindUObject(Object, &Method): bind to a UObject member function (tracked by GC)",
+        "BindLambda([](){ }): bind to a lambda",
+        "BindStatic(&StaticFunc): bind to a static/free function",
+        "Execute(): call the bound function. Crashes if nothing is bound.",
+        "ExecuteIfBound(): safe call — does nothing if not bound.",
+        "IsBound(): check if something is bound",
+        "Unbind(): remove the binding"
+      ],
+      "codeExample": "// Declare\nDECLARE_DELEGATE_TwoParams(FOnDamageDealt, float, AActor*);\n\n// In a class\nFOnDamageDealt OnDamageDealt;\n\n// Bind\nOnDamageDealt.BindUObject(this, &AMyActor::HandleDamage);\n\n// Or bind lambda\nOnDamageDealt.BindLambda([](float Damage, AActor* Target) {\n    UE_LOG(LogTemp, Log, TEXT(\"Dealt %f damage\"), Damage);\n});\n\n// Call\nOnDamageDealt.ExecuteIfBound(50.f, TargetActor);",
+      "tags": ["delegate", "single cast", "bind", "execute", "callback", "function pointer"]
+    },
+    {
+      "id": "ref_td_003",
+      "title": "Multicast Delegates — Events",
+      "description": "Multicast delegates can have MULTIPLE listeners. They are the event system — one broadcaster, many subscribers. Used extensively for gameplay events.",
+      "whatItIs": "A delegate that supports multiple simultaneous bindings, allowing one broadcaster to notify many subscribers. Declared with DECLARE_MULTICAST_DELEGATE macros, these form the backbone of UE5's observer/event pattern for gameplay systems like health changes, game state transitions, and input events.",
+      "whenToUse": [
+        "Broadcasting gameplay events that multiple systems care about (health changed, player died, round started)",
+        "Observer pattern where one object notifies many listeners without knowing who they are",
+        "Decoupling gameplay systems — e.g., a damage system broadcasts, and UI, AI, and audio all subscribe independently",
+        "When you need zero-to-many subscribers and the broadcaster should not care how many are listening"
+      ],
+      "whenNotToUse": [
+        "When only one listener should ever handle the event — use single-cast delegate for clarity",
+        "When you need Blueprint binding support — use dynamic multicast delegates instead",
+        "When the delegate needs a return value — multicast delegates cannot return values",
+        "For high-frequency per-frame events with hundreds of listeners — consider a more efficient polling approach"
+      ],
+      "relatedClasses": [
+        "TMulticastDelegate",
+        "FDelegateHandle",
+        "TBaseDynamicMulticastDelegate",
+        "FMulticastScriptDelegate"
+      ],
+      "commonMistakes": [
+        "Not storing the FDelegateHandle returned by AddUObject, making it impossible to unsubscribe later",
+        "Forgetting to call Remove() or RemoveAll() when the subscribing object is destroyed, leaving dangling bindings",
+        "Assuming a specific call order for listeners — they fire in addition order but this should not be relied upon for logic",
+        "Broadcasting from within a listener callback that modifies the delegate's binding list, which can cause undefined behavior",
+        "Using multicast when a return value is needed — multicast Broadcast() is void-only"
+      ],
+      "keyPoints": [
+        "DECLARE_MULTICAST_DELEGATE(Name): no params. _OneParam, _TwoParams, etc.",
+        "AddUObject(Object, &Method): subscribe. Returns FDelegateHandle for later removal.",
+        "Remove(DelegateHandle): unsubscribe a specific listener",
+        "RemoveAll(Object): remove all bindings from a specific object",
+        "Broadcast(): call ALL bound functions. Safe even if nothing is bound.",
+        "IsBound(): check if any listeners are bound",
+        "Clear(): remove all bindings",
+        "Listeners are called in the order they were added (no priority system)"
+      ],
+      "codeExample": "// Declare\nDECLARE_MULTICAST_DELEGATE_OneParam(FOnHealthChanged, float);\n\n// In a class\nFOnHealthChanged OnHealthChanged;\n\n// Subscribe (multiple listeners)\nFDelegateHandle UIHandle = OnHealthChanged.AddUObject(HealthBar, &UHealthBar::UpdateDisplay);\nFDelegateHandle AIHandle = OnHealthChanged.AddUObject(AIController, &AAICtrl::OnTargetHealthChanged);\n\n// Broadcast to all\nOnHealthChanged.Broadcast(CurrentHealth);\n\n// Unsubscribe one\nOnHealthChanged.Remove(UIHandle);\n\n// Unsubscribe all from a specific object\nOnHealthChanged.RemoveAll(HealthBar);",
+      "tags": ["multicast delegate", "event", "broadcast", "subscribe", "listener", "observer"]
+    },
+    {
+      "id": "ref_td_004",
+      "title": "Dynamic Delegates — Blueprint-Compatible",
+      "description": "Dynamic delegates use reflection and can be serialized, making them usable from Blueprints. Required for UPROPERTY(BlueprintAssignable) events and AddDynamic/RemoveDynamic.",
+      "whatItIs": "A reflection-based delegate type that uses FName-based function lookup, enabling serialization and Blueprint compatibility. Dynamic delegates are the only delegate type that can be exposed to Blueprints via UPROPERTY(BlueprintAssignable) and are used by all built-in UE5 component events like OnComponentBeginOverlap.",
+      "whenToUse": [
+        "Exposing C++ events to Blueprints with UPROPERTY(BlueprintAssignable)",
+        "Binding to built-in engine events like OnComponentBeginOverlap, OnComponentHit, OnActorBeginOverlap",
+        "When designers need to bind events in the Blueprint EventGraph without C++ involvement",
+        "When delegates need to be serialized or saved as part of a UPROPERTY"
+      ],
+      "whenNotToUse": [
+        "Pure C++ systems where Blueprint access is not needed — regular delegates are faster",
+        "Performance-critical code with thousands of delegate calls per frame — FName lookup has overhead",
+        "When you need BindLambda or BindStatic — dynamic delegates only support UObject member functions",
+        "Internal engine subsystems that never interact with Blueprints"
+      ],
+      "relatedClasses": [
+        "TBaseDynamicDelegate",
+        "TBaseDynamicMulticastDelegate",
+        "FScriptDelegate",
+        "FMulticastScriptDelegate",
+        "UDelegateProperty",
+        "UMulticastDelegateProperty"
+      ],
+      "commonMistakes": [
+        "Forgetting that AddDynamic is a macro that requires the &ClassName::FunctionName syntax — not a regular function call",
+        "Not matching the UFUNCTION signature exactly with the delegate parameters, causing silent binding failures",
+        "Declaring the bound function without UFUNCTION() — dynamic delegates require reflected functions",
+        "Forgetting parameter names in DECLARE_DYNAMIC macros — they are required unlike regular delegates",
+        "Calling AddDynamic multiple times without RemoveDynamic, causing duplicate notifications on each Broadcast"
+      ],
+      "keyPoints": [
+        "DECLARE_DYNAMIC_DELEGATE(Name): single-cast, Blueprint-compatible",
+        "DECLARE_DYNAMIC_MULTICAST_DELEGATE(Name): multicast, Blueprint-compatible",
+        "UPROPERTY(BlueprintAssignable): expose to Blueprint for binding in EventGraph",
+        "AddDynamic(Object, &Method): subscribe (macro — not a regular function call)",
+        "RemoveDynamic(Object, &Method): unsubscribe",
+        "Broadcast(): fire the event to all Blueprint and C++ listeners",
+        "Slower than regular delegates (uses FName-based lookup) — use only when Blueprint binding is needed",
+        "Parameter names are required in the DECLARE macro: DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(Name, float, Damage)",
+        "OnComponentBeginOverlap, OnComponentHit, etc. are all dynamic multicast delegates"
+      ],
+      "codeExample": "// Declaration\nDECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDeath, ACharacter*, DeadCharacter, AActor*, Killer);\n\nUCLASS()\nclass AMyCharacter : public ACharacter {\n    GENERATED_BODY()\npublic:\n    // Bindable in Blueprint\n    UPROPERTY(BlueprintAssignable, Category=\"Events\")\n    FOnDeath OnDeath;\n    \n    void Die(AActor* Killer) {\n        OnDeath.Broadcast(this, Killer);\n    }\n};\n\n// C++ binding with AddDynamic\nvoid AMyGameMode::PostLogin(APlayerController* PC) {\n    if (AMyCharacter* Char = Cast<AMyCharacter>(PC->GetPawn())) {\n        Char->OnDeath.AddDynamic(this, &AMyGameMode::HandlePlayerDeath);\n    }\n}\n\n// Overlap example\nSphereComp->OnComponentBeginOverlap.AddDynamic(this, &AMyActor::OnOverlap);",
+      "tags": ["dynamic delegate", "blueprint assignable", "adddynamic", "removedynamic", "broadcast", "event", "overlap"]
+    }
+  ]
+}

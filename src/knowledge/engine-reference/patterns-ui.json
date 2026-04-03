@@ -1,0 +1,65 @@
+{
+  "category": "patterns-ui",
+  "displayName": "Patterns: HUD & UI Architecture",
+  "description": "Architectural patterns for structuring UMG UI in UE5 — HUD, menus, widgets, and the separation between UI and game logic",
+  "entries": [
+    {
+      "id": "pat_ui_001",
+      "title": "Pattern: HUD & UI Architecture",
+      "description": "How to structure your game's UI layer so widgets don't become tangled with gameplay code. Covers the separation between UI display, UI management, and game state.",
+      "whatItIs": "A clean architecture for UMG UI: widgets only display data and capture input, a HUD or UI manager handles widget lifecycle (create, show, hide, destroy), and game logic never lives inside widgets.",
+      "whenToUse": [
+        "Any game with a HUD (health bar, minimap, ammo count) and menus (pause, inventory, settings)",
+        "When multiple widgets need to react to the same game state changes",
+        "When you want designers to build widget layouts in UMG without touching game logic"
+      ],
+      "whenNotToUse": [
+        "Extremely simple UI with one or two text elements — just create them directly on the HUD class",
+        "UI-only applications (tools, editors) where the widget IS the application"
+      ],
+      "keyPoints": [
+        "STEP 1 — Separate your UI into layers: HUD layer (always visible: health, ammo, minimap), Menu layer (overlays: pause, inventory, shop), and Popup layer (confirmations, tooltips, notifications).",
+        "STEP 2 — Create a UI Manager. This can be a UObject on the PlayerController, a Subsystem, or a function library. It handles: creating widgets, pushing/popping menus, managing input mode switches.",
+        "STEP 3 — Widgets are DUMB. They display data and fire events when clicked/pressed. They do NOT: query game state directly, cast to the player character, modify game variables, or call gameplay functions.",
+        "STEP 4 — Data flows one way: Game State -> Widget. Use one of these: (A) Widget exposes a SetData function that the controller calls, (B) Widget binds to a delegate on a component/subsystem, (C) Widget uses property bindings to a ViewModel.",
+        "STEP 5 — User actions flow the other way: Widget -> Controller. When a button is pressed, the widget broadcasts a delegate or calls a function on the controller. The widget says 'button was pressed', the controller decides what to do.",
+        "STEP 6 — Input mode management: when a menu opens, switch to UI input mode. When it closes, switch back to Game input mode. The UI Manager handles this, not individual widgets.",
+        "STEP 7 — For the HUD: create a main HUD widget (W_HUD) that contains sub-widgets (W_HealthBar, W_AmmoCounter, W_Minimap). Add it to viewport once in BeginPlay. Sub-widgets update through delegates from their respective components."
+      ],
+      "commonMistakes": [
+        "Widgets casting to the Player Character to read health — the widget should receive health through a delegate or SetData call, not by reaching into gameplay code",
+        "Creating and destroying widgets every time a menu opens/closes — create once, show/hide with SetVisibility or Add/RemoveFromParent",
+        "Putting game logic in widget button callbacks — the widget should just broadcast 'ResumeClicked', the controller handles unpausing",
+        "Not managing input mode — opening a menu without switching to UI input means the player can still move and shoot behind the menu",
+        "Having every widget independently find and bind to game objects — use a central data source or have the controller push data to widgets",
+        "Deep widget nesting without clear data flow — if a child widget 5 levels deep needs player data, pass it down or use a shared ViewModel, don't have it cast to the player"
+      ],
+      "goodPractices": [
+        "Widgets are visual only — they receive data and emit UI events, nothing else",
+        "One HUD widget as the container, sub-widgets for each element — modular and easy to toggle",
+        "Use delegates to push data TO widgets: OnHealthChanged -> W_HealthBar::UpdateHealth",
+        "UI Manager controls widget lifecycle and input modes — widgets don't manage themselves",
+        "For menus: push/pop pattern. Opening Inventory pushes it onto a stack, pressing back pops it. Clean navigation.",
+        "Keep widget animations in the widget (UMG animations) — they're visual concern, not game logic",
+        "Use widget Switchers (UWidgetSwitcher) for tab-based UIs instead of creating/destroying child widgets"
+      ],
+      "relatedClasses": [
+        "UUserWidget",
+        "AHUD",
+        "UWidgetComponent",
+        "APlayerController",
+        "UWidgetAnimation",
+        "UWidgetBlueprintGeneratedClass",
+        "UCanvasPanel",
+        "UVerticalBox",
+        "UHorizontalBox",
+        "UButton",
+        "UTextBlock",
+        "UProgressBar",
+        "UImage"
+      ],
+      "codeExample": "// UIManager — lives on PlayerController or as a Subsystem\nUCLASS()\nclass UUIManager : public UObject\n{\n    GENERATED_BODY()\npublic:\n    void Initialize(APlayerController* InOwner);\n\n    UFUNCTION(BlueprintCallable)\n    void ShowHUD();\n\n    UFUNCTION(BlueprintCallable)\n    void PushMenu(TSubclassOf<UUserWidget> MenuClass);\n\n    UFUNCTION(BlueprintCallable)\n    void PopMenu();\n\nprotected:\n    UPROPERTY()\n    APlayerController* Owner;\n\n    UPROPERTY()\n    UUserWidget* HUDWidget;\n\n    UPROPERTY()\n    TArray<UUserWidget*> MenuStack;\n\n    void UpdateInputMode();\n};\n\n// UIManager.cpp\nvoid UUIManager::PushMenu(TSubclassOf<UUserWidget> MenuClass)\n{\n    UUserWidget* Menu = CreateWidget<UUserWidget>(Owner, MenuClass);\n    Menu->AddToViewport(10 + MenuStack.Num());\n    MenuStack.Push(Menu);\n    UpdateInputMode();\n}\n\nvoid UUIManager::PopMenu()\n{\n    if (MenuStack.Num() == 0) return;\n    UUserWidget* Top = MenuStack.Pop();\n    Top->RemoveFromParent();\n    UpdateInputMode();\n}\n\nvoid UUIManager::UpdateInputMode()\n{\n    if (MenuStack.Num() > 0)\n    {\n        FInputModeUIOnly InputMode;\n        InputMode.SetWidgetToFocus(MenuStack.Last()->TakeWidget());\n        Owner->SetInputMode(InputMode);\n        Owner->SetShowMouseCursor(true);\n    }\n    else\n    {\n        Owner->SetInputMode(FInputModeGameOnly());\n        Owner->SetShowMouseCursor(false);\n    }\n}\n\n// W_HealthBar — a dumb widget that just displays data\n// In Blueprint: bind ProgressBar percentage to a float\n// The HUD widget calls SetHealth from the HealthComponent delegate\nUCLASS()\nclass UW_HealthBar : public UUserWidget\n{\n    GENERATED_BODY()\npublic:\n    UFUNCTION(BlueprintCallable)\n    void UpdateHealth(float Current, float Max)\n    {\n        if (HealthBar)\n        {\n            HealthBar->SetPercent(Max > 0.f ? Current / Max : 0.f);\n        }\n    }\n\nprotected:\n    UPROPERTY(meta = (BindWidget))\n    UProgressBar* HealthBar;\n};",
+      "tags": ["pattern", "ui", "hud", "umg", "widget", "menu", "architecture", "how to build", "structure", "health bar", "pause menu", "pause", "settings menu", "main menu", "input mode"]
+    }
+  ]
+}

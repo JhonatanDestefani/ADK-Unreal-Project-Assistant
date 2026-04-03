@@ -1,0 +1,138 @@
+{
+  "category": "containers",
+  "displayName": "Container Types",
+  "description": "UE5 container types: TArray, TMap, TSet — creation, iteration, searching, sorting, and Blueprint exposure",
+  "entries": [
+    {
+      "id": "ref_cont_001",
+      "title": "TArray — Dynamic Array",
+      "description": "TArray is UE5's dynamic array, equivalent to std::vector. It's the most used container in UE5 — used for inventories, actor lists, hit results, path points, and virtually every collection of items.",
+      "whatItIs": "TArray<T> is a templated, dynamically-sized contiguous array that supports adding, removing, finding, sorting, and iterating elements. It is the UE5 equivalent of std::vector and is the default container choice for ordered collections.",
+      "whenToUse": [
+        "Any ordered list of items — inventory, spell list, waypoints, hit results",
+        "When you need index-based access (MyArray[3])",
+        "When you need to iterate over all elements in order",
+        "When insertion/removal at the end is the primary operation",
+        "UPROPERTY arrays exposed to Blueprint and the editor"
+      ],
+      "whenNotToUse": [
+        "When you need fast lookup by key — use TMap instead",
+        "When you need to guarantee uniqueness — use TSet instead",
+        "When you frequently remove elements from the middle — consider TSet or TLinkedList",
+        "For fixed-size arrays known at compile time — use a C array or std::array"
+      ],
+      "relatedClasses": [
+        "TMap",
+        "TSet",
+        "TArrayView",
+        "FScriptArray"
+      ],
+      "commonMistakes": [
+        "Removing elements while iterating forward — invalidates indices. Iterate backward or use RemoveAll with a predicate.",
+        "Using FindByKey/Find and not checking for nullptr/INDEX_NONE — the element might not exist",
+        "Calling Num() every iteration instead of caching it: for (int i = 0; i < Arr.Num(); i++) is fine, but be aware of mutation",
+        "Not reserving capacity for large known-size arrays: Arr.Reserve(1000) avoids repeated reallocation",
+        "Using Contains() + Add() separately when AddUnique() does both in one call"
+      ],
+      "keyPoints": [
+        "Add(Item): append to end. Emplace(Args): construct in-place. Insert(Item, Index): insert at position.",
+        "Remove(Item): remove first occurrence. RemoveAt(Index): remove by index. RemoveAll(Predicate): remove matching.",
+        "RemoveSwap(Index): fast remove by swapping with last element (doesn't preserve order).",
+        "Num(): count. IsEmpty(): check empty. IsValidIndex(i): bounds check.",
+        "Find(Item): returns index or INDEX_NONE. FindByPredicate([](T){ }): returns pointer or nullptr.",
+        "Contains(Item): bool check. ContainsByPredicate(): bool check with lambda.",
+        "Sort([](A, B){ return A < B; }): sort with custom comparator.",
+        "Reserve(Count): pre-allocate capacity. Empty(): clear all elements.",
+        "Range-based for: for (auto& Item : MyArray) { ... }"
+      ],
+      "codeExample": "// Basic usage\nTArray<FString> Names;\nNames.Add(TEXT(\"Alice\"));\nNames.Add(TEXT(\"Bob\"));\nNames.AddUnique(TEXT(\"Alice\")); // Won't add duplicate\n\n// Iteration\nfor (const FString& Name : Names) {\n    UE_LOG(LogTemp, Log, TEXT(\"%s\"), *Name);\n}\n\n// Find\nint32 Index = Names.Find(TEXT(\"Bob\")); // Returns 1\nif (Index != INDEX_NONE) { /* found */ }\n\n// Find with predicate\nFString* Found = Names.FindByPredicate([](const FString& S) {\n    return S.StartsWith(TEXT(\"A\"));\n});\nif (Found) { /* *Found == \"Alice\" */ }\n\n// Remove while iterating (backward)\nfor (int32 i = Names.Num() - 1; i >= 0; i--) {\n    if (Names[i].Len() < 4) Names.RemoveAt(i);\n}\n\n// Sort\nTArray<int32> Scores = {50, 10, 90, 30};\nScores.Sort(); // Ascending\nScores.Sort([](int32 A, int32 B) { return A > B; }); // Descending\n\n// UPROPERTY\nUPROPERTY(EditAnywhere, BlueprintReadWrite)\nTArray<TSubclassOf<AWeapon>> WeaponClasses;",
+      "tags": ["tarray", "array", "dynamic array", "container", "add", "remove", "find", "sort", "iterate"]
+    },
+    {
+      "id": "ref_cont_002",
+      "title": "TMap — Key-Value Dictionary",
+      "description": "TMap is UE5's hash map, equivalent to std::unordered_map. It stores key-value pairs with O(1) lookup. Used for inventories (ID → count), registries, caches, and any key-based lookup.",
+      "whatItIs": "TMap<KeyType, ValueType> is a templated hash-based dictionary that maps unique keys to values with O(1) average-case lookup, insertion, and removal. It is the UE5 equivalent of std::unordered_map.",
+      "whenToUse": [
+        "Looking up values by a key — item ID to item data, actor to health, FName to config value",
+        "Counting occurrences — TMap<FName, int32> for kill counts per weapon",
+        "Caching computed results — TMap<FName, UTexture*> for texture lookup cache",
+        "Any association between two types where key uniqueness is required"
+      ],
+      "whenNotToUse": [
+        "When you need ordered iteration — TMap iteration order is not guaranteed. Use TSortedMap for ordered keys.",
+        "When you just need a list — use TArray",
+        "When you need multiple values per key — use TMultiMap",
+        "For very small collections (< 10 elements) — linear search on TArray is often faster due to cache locality"
+      ],
+      "relatedClasses": [
+        "TArray",
+        "TSet",
+        "TMultiMap",
+        "TSortedMap",
+        "TPair"
+      ],
+      "commonMistakes": [
+        "Using operator[] to check existence — it inserts a default value if the key doesn't exist. Use Find() or Contains() first.",
+        "Not checking the return value of Find() for nullptr before dereferencing",
+        "Assuming iteration order — TMap does not guarantee any order. Use TSortedMap if order matters.",
+        "Removing elements during range-based for iteration — undefined behavior. Use a separate list of keys to remove.",
+        "Using heavy objects as keys — keys must support GetTypeHash(); complex objects have expensive hashing"
+      ],
+      "keyPoints": [
+        "Add(Key, Value): insert or update. Emplace(Key, Args): construct in-place.",
+        "Find(Key): returns ValueType* or nullptr. Use to check + access in one step.",
+        "FindOrAdd(Key): returns reference, inserting default if not found.",
+        "operator[Key]: inserts default if key doesn't exist — use carefully!",
+        "Contains(Key): bool check.",
+        "Remove(Key): remove by key. Returns number of elements removed (0 or 1).",
+        "Num(): count of key-value pairs.",
+        "Iteration: for (auto& Pair : MyMap) { Pair.Key, Pair.Value }",
+        "GenerateKeyArray(), GenerateValueArray(): extract keys or values into TArray"
+      ],
+      "codeExample": "// Inventory: item name -> count\nTMap<FName, int32> Inventory;\nInventory.Add(TEXT(\"HealthPotion\"), 5);\nInventory.Add(TEXT(\"ManaPotion\"), 3);\n\n// Safe lookup\nif (int32* Count = Inventory.Find(TEXT(\"HealthPotion\"))) {\n    UE_LOG(LogTemp, Log, TEXT(\"Has %d health potions\"), *Count);\n    (*Count)--;  // Consume one\n}\n\n// FindOrAdd (insert default 0 if not found)\nint32& SwordCount = Inventory.FindOrAdd(TEXT(\"Sword\"));\nSwordCount += 1;\n\n// Iteration\nfor (auto& Pair : Inventory) {\n    UE_LOG(LogTemp, Log, TEXT(\"%s: %d\"), *Pair.Key.ToString(), Pair.Value);\n}\n\n// UPROPERTY\nUPROPERTY(EditAnywhere, BlueprintReadWrite)\nTMap<FName, float> DamageMultipliers;\n\n// Remove\nInventory.Remove(TEXT(\"ManaPotion\"));",
+      "tags": ["tmap", "map", "dictionary", "hash map", "key value", "container", "find", "lookup"]
+    },
+    {
+      "id": "ref_cont_003",
+      "title": "TSet — Unique Collection",
+      "description": "TSet is UE5's hash set — an unordered collection of unique elements with O(1) lookup. Used when you need fast membership checks and guaranteed uniqueness.",
+      "whatItIs": "TSet<T> is a templated hash-based set that stores unique elements with O(1) average-case contains/add/remove. It is the UE5 equivalent of std::unordered_set.",
+      "whenToUse": [
+        "Tracking which actors are in a trigger volume — fast add/remove/contains checks",
+        "Ensuring uniqueness — adding an element that already exists is a no-op",
+        "Fast membership checks — 'has this player already voted?' or 'is this item unlocked?'",
+        "Set operations — Union, Intersect, Difference between two collections"
+      ],
+      "whenNotToUse": [
+        "When you need ordered iteration — TSet order is not guaranteed",
+        "When you need index-based access — use TArray",
+        "When you need key-value pairs — use TMap",
+        "When duplicates are expected and meaningful — use TArray"
+      ],
+      "relatedClasses": [
+        "TArray",
+        "TMap",
+        "TSortedMap"
+      ],
+      "commonMistakes": [
+        "Assuming iteration order — TSet is unordered",
+        "Using TSet for small collections (< 10 items) where TArray::Contains is fast enough and has better cache behavior",
+        "Storing UObject pointers in TSet without understanding that destroyed objects leave dangling entries — periodically clean the set",
+        "Not implementing GetTypeHash for custom types stored in TSet — compilation fails without it"
+      ],
+      "keyPoints": [
+        "Add(Item): insert if not already present. Returns FSetElementId.",
+        "Contains(Item): O(1) membership check.",
+        "Remove(Item): remove if present.",
+        "Num(): element count. IsEmpty(): check empty.",
+        "Union(): combine two sets. Intersect(): elements in both. Difference(): elements in A but not B.",
+        "Array(): convert TSet to TArray.",
+        "Custom types need: operator== and a GetTypeHash() function",
+        "Range-based for: for (auto& Item : MySet) { ... }"
+      ],
+      "codeExample": "// Track actors in a trigger zone\nTSet<AActor*> ActorsInZone;\n\nvoid AMyTrigger::OnOverlapBegin(AActor* Actor) {\n    ActorsInZone.Add(Actor);\n}\n\nvoid AMyTrigger::OnOverlapEnd(AActor* Actor) {\n    ActorsInZone.Remove(Actor);\n}\n\nbool AMyTrigger::IsActorInZone(AActor* Actor) const {\n    return ActorsInZone.Contains(Actor);\n}\n\n// Track unlocked abilities\nTSet<FName> UnlockedAbilities;\nUnlockedAbilities.Add(TEXT(\"Fireball\"));\nUnlockedAbilities.Add(TEXT(\"IceBlast\"));\n\nif (UnlockedAbilities.Contains(TEXT(\"Fireball\"))) {\n    // Can use fireball\n}\n\n// Set operations\nTSet<FName> SetA = {TEXT(\"A\"), TEXT(\"B\"), TEXT(\"C\")};\nTSet<FName> SetB = {TEXT(\"B\"), TEXT(\"C\"), TEXT(\"D\")};\nTSet<FName> Both = SetA.Intersect(SetB);  // {B, C}\nTSet<FName> All = SetA.Union(SetB);       // {A, B, C, D}\nTSet<FName> OnlyA = SetA.Difference(SetB); // {A}",
+      "tags": ["tset", "set", "hash set", "unique", "contains", "container", "union", "intersect"]
+    }
+  ]
+}

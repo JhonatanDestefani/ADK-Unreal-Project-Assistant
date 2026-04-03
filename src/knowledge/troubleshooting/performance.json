@@ -1,0 +1,178 @@
+{
+  "category": "performance",
+  "displayName": "Performance",
+  "description": "FPS drops, hitches, memory issues, CPU/GPU bottlenecks, and optimization in UE5",
+  "entries": [
+    {
+      "id": "perf_001",
+      "title": "Tick() Running Expensive Logic Every Frame",
+      "symptoms": ["low fps", "tick overhead", "frame time spike", "cpu bound", "expensive tick"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Placing heavy logic (traces, overlap checks, GetAllActorsOfClass, complex math) inside Tick() causes it to run every frame, destroying performance especially with many actors.",
+      "rootCause": "Tick() runs once per frame for every actor that has ticking enabled. With 60fps and 100 actors, that's 6000 calls per second. Expensive operations inside Tick multiply the cost.",
+      "solution": [
+        "Use Timers (GetWorldTimerManager().SetTimer) instead of Tick for periodic logic",
+        "Set TickInterval on the actor to reduce tick frequency (e.g., every 0.1s instead of every frame)",
+        "Disable tick entirely with PrimaryActorTick.bCanEverTick = false when not needed",
+        "Use event-driven patterns: delegates, overlap events, input bindings instead of polling",
+        "For queries like GetAllActorsOfClass, cache the result and refresh on a timer"
+      ],
+      "codeExample": "// BAD - runs every frame for every instance\nvoid AMyActor::Tick(float DeltaTime) {\n    TArray<AActor*> Actors;\n    UGameplayStatics::GetAllActorsOfClass(this, AEnemy::StaticClass(), Actors);\n}\n\n// GOOD - runs on a timer every 0.5s\nAMyActor::AMyActor() {\n    PrimaryActorTick.bCanEverTick = false;  // disable tick\n}\nvoid AMyActor::BeginPlay() {\n    Super::BeginPlay();\n    GetWorldTimerManager().SetTimer(QueryTimer, this, &AMyActor::UpdateEnemyList, 0.5f, true);\n}",
+      "tags": ["tick", "fps", "timer", "optimization", "getallactorsofclass", "polling"]
+    },
+    {
+      "id": "perf_002",
+      "title": "Draw Call Overhead / Too Many Materials",
+      "symptoms": ["gpu bound", "draw calls", "low fps", "too many materials", "mesh sections", "stat scenerendering"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "High draw call count caused by many separate meshes or many material slots per mesh. Each unique material on a mesh creates a separate draw call.",
+      "rootCause": "The renderer submits one draw call per mesh section (material slot). Hundreds of small meshes with different materials prevent batching. UE5's Nanite helps for static meshes but doesn't solve all cases.",
+      "solution": [
+        "Use 'stat scenerendering' to see draw call count (target < 2000-3000 for most games)",
+        "Merge static meshes in the level using Merge Actors tool",
+        "Use Material Instances instead of unique Materials - they batch better",
+        "Enable Nanite for static meshes (massive draw call reduction)",
+        "Use Hierarchical Instanced Static Mesh (HISM) for repeated objects like foliage",
+        "Reduce material slots per mesh - combine textures into atlases"
+      ],
+      "tags": ["draw calls", "materials", "gpu", "nanite", "hism", "batching", "mesh merge"]
+    },
+    {
+      "id": "perf_003",
+      "title": "Memory Leak from Unreleased Assets",
+      "symptoms": ["memory leak", "out of memory", "growing memory", "texture memory", "asset not garbage collected"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Memory usage grows continuously during gameplay because loaded assets (textures, meshes, sounds) are never released. Hard references keep assets in memory even when no longer needed.",
+      "rootCause": "UPROPERTY hard references (UTexture2D*, UStaticMesh*) force-load assets when the owning object loads and keep them in memory. LoadObject/LoadClass without corresponding release. Spawned actors not being destroyed.",
+      "solution": [
+        "Use TSoftObjectPtr<T> and FSoftObjectPath for assets that aren't always needed",
+        "Load assets on demand with StreamableManager.RequestAsyncLoad()",
+        "Use 'memreport -full' console command to identify what's consuming memory",
+        "Check for actors that spawn but never get destroyed (projectiles, effects, etc.)",
+        "Use object pooling for frequently spawned/destroyed objects",
+        "Set asset references to nullptr when done to allow GC to collect them"
+      ],
+      "codeExample": "// BAD - hard reference forces loading at construction\nUPROPERTY(EditDefaultsOnly)\nUTexture2D* HugeTexture;  // always in memory\n\n// GOOD - soft reference, load on demand\nUPROPERTY(EditDefaultsOnly)\nTSoftObjectPtr<UTexture2D> HugeTexture;\n\n// Load when needed\nif (!HugeTexture.IsValid()) {\n    HugeTexture.LoadSynchronous();\n}",
+      "tags": ["memory", "leak", "soft reference", "tsoftobjectptr", "streaming", "garbage collection"]
+    },
+    {
+      "id": "perf_004",
+      "title": "Lumen / Global Illumination Performance Issues",
+      "symptoms": ["lumen slow", "gi performance", "global illumination fps", "lighting lag", "screen traces expensive"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Lumen global illumination and reflections can be very expensive, especially on lower-end hardware or in scenes with high complexity.",
+      "rootCause": "Lumen uses software ray tracing (screen traces + mesh distance fields) or hardware ray tracing. Large open scenes, many overlapping meshes, or high reflection quality settings can tank performance.",
+      "solution": [
+        "Use 'stat gpu' and Unreal Insights to identify if Lumen is the bottleneck",
+        "Reduce Lumen quality in Project Settings > Rendering > Global Illumination",
+        "Set Lumen Scene Detail to a lower value for less important areas",
+        "Use r.Lumen.ScreenProbeGather.ScreenSpaceTracingThickness for cheaper screen traces",
+        "For interiors, use fewer bounces. For mobile/low-end, fall back to Screen Space GI",
+        "Ensure meshes have proper distance field representation (check Mesh > Build Settings)",
+        "Use Lumen Scene capture distance to limit how far Lumen calculates"
+      ],
+      "tags": ["lumen", "global illumination", "gi", "lighting", "ray tracing", "screen traces"]
+    },
+    {
+      "id": "perf_005",
+      "title": "Blueprint Nativization / Blueprint Performance Overhead",
+      "symptoms": ["blueprint slow", "bp performance", "blueprint overhead", "bp vs cpp", "blueprint nativization"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Complex Blueprint logic running in Tick or on many instances causes noticeable performance overhead compared to equivalent C++ code. Blueprint VM execution is ~10x slower than native C++.",
+      "rootCause": "Blueprints execute through a virtual machine interpreter. Each node is a function call with reflection overhead. This is negligible for event-driven logic but adds up in tight loops or per-frame operations across many instances.",
+      "solution": [
+        "Move performance-critical logic (Tick, inner loops, math-heavy operations) to C++",
+        "Keep Blueprints for event handling, UI logic, and prototyping",
+        "Use BlueprintNativeEvent: implement in C++ with BP override option",
+        "Profile with 'stat game' and Unreal Insights to identify slow BP functions",
+        "Reduce Blueprint node count in hot paths - collapse to C++ helper functions"
+      ],
+      "tags": ["blueprint", "performance", "nativization", "cpp", "virtual machine", "overhead"]
+    },
+    {
+      "id": "perf_006",
+      "title": "Shader Compilation Stutter / Hitches",
+      "symptoms": ["shader compilation", "hitching", "stutter", "first time visible", "PSO cache", "shader cache"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Hitches and stuttering the first time a material or mesh is rendered because its shaders need to be compiled on the fly (Pipeline State Object cache miss).",
+      "rootCause": "UE5 compiles shaders into Pipeline State Objects (PSOs) on demand. The first time a unique material+mesh+render state combination is encountered, it must compile, causing a frame hitch. This is especially noticeable on DX12/Vulkan.",
+      "solution": [
+        "Enable PSO precaching: Project Settings > Rendering > Pipeline State Object Precaching",
+        "Cook PSO data by running the game and exercising all content, then bundling the cache",
+        "Use 'r.ShaderPipelineCache.Enabled 1' and collect PSO data during QA passes",
+        "Reduce material permutations - fewer unique shader variants means less compilation",
+        "Use shared Material Instances from common parent materials",
+        "On first load, do a warmup pass that renders all common materials off-screen"
+      ],
+      "tags": ["shader", "compilation", "stutter", "hitch", "pso", "pipeline state", "cache"]
+    },
+    {
+      "id": "perf_007",
+      "title": "Collision / Physics Overhead",
+      "symptoms": ["physics slow", "collision expensive", "overlap checks slow", "physics substep", "broadphase"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "High CPU cost from physics simulation, often caused by too many overlapping collision volumes, complex collision meshes, or unnecessary per-frame physics queries.",
+      "rootCause": "Every collision primitive participates in broadphase detection. Complex collision meshes (high poly count) are expensive in narrowphase. Many overlapping triggers generate constant overlap events. Per-frame line traces add up.",
+      "solution": [
+        "Use simple collision (boxes, spheres, capsules) instead of complex mesh collision",
+        "Set collision channels properly - disable overlap/query on objects that don't need it",
+        "Use Collision Presets to filter what queries against what",
+        "For line traces, use the minimum required complexity (channel > object > multi)",
+        "Reduce physics substeps if precision isn't critical",
+        "Use 'stat collision' and 'show collision' to visualize and profile"
+      ],
+      "tags": ["collision", "physics", "overlap", "trace", "broadphase", "chaos"]
+    },
+    {
+      "id": "perf_008",
+      "title": "World Partition / Level Streaming Hitches",
+      "symptoms": ["streaming hitch", "level loading stutter", "world partition lag", "pop-in", "loading screen freeze"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Noticeable hitches when level streaming loads/unloads chunks, especially with World Partition in open world maps.",
+      "rootCause": "Loading level data from disk and creating actors on the game thread causes frame spikes. Large streaming volumes with many actors load everything at once. Texture and mesh streaming adds GPU stalls.",
+      "solution": [
+        "Adjust World Partition grid cell size - smaller cells = more granular loading",
+        "Use Data Layers to control what loads and when",
+        "Set streaming distances appropriately per actor",
+        "Use async loading: set Level Streaming to 'Blueprint' and load asynchronously",
+        "Enable texture streaming and set appropriate streaming pool size",
+        "Profile with 'stat streaming' and Unreal Insights"
+      ],
+      "tags": ["streaming", "world partition", "level", "hitch", "loading", "open world"]
+    },
+    {
+      "id": "perf_009",
+      "title": "Garbage Collection Hitches",
+      "symptoms": ["gc hitch", "garbage collection stutter", "gc cluster", "periodic frame drop", "gc.TimeBetweenPurgingPendingKillObjects"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Periodic frame hitches caused by the garbage collector scanning and destroying unreferenced UObjects. More noticeable with many dynamic spawns/destroys.",
+      "rootCause": "UE5's garbage collector runs periodically (default every 60s or when triggered). It must scan all UObjects to find unreferenced ones. Many objects or complex reference graphs make this scan expensive.",
+      "solution": [
+        "Use object pooling instead of spawn/destroy for frequent objects (projectiles, effects)",
+        "Tune GC frequency: gc.TimeBetweenPurgingPendingKillObjects (increase for less frequent GC)",
+        "Enable incremental GC: gc.IncrementalBeginDestroyEnabled=1",
+        "Reduce UObject count - use structs (USTRUCT) instead of UObjects where possible",
+        "Use ForceGarbageCollection() during non-critical moments (loading screens)",
+        "Profile with 'stat gc' to see GC duration and frequency"
+      ],
+      "tags": ["gc", "garbage collection", "hitch", "stutter", "pooling", "uobject"]
+    },
+    {
+      "id": "perf_010",
+      "title": "Animation / Skeletal Mesh CPU Overhead",
+      "symptoms": ["animation slow", "skeletal mesh expensive", "anim blueprint overhead", "pose evaluation", "cloth simulation lag"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "High CPU cost from evaluating many skeletal meshes with complex animation blueprints, cloth simulation, or physics-based animation.",
+      "rootCause": "Each skeletal mesh evaluates its AnimBP every frame. Complex state machines, many blend nodes, IK solvers, and cloth/ragdoll add per-instance cost. Off-screen characters still evaluate unless LOD settings are configured.",
+      "solution": [
+        "Use Animation LODs - reduce bone count and evaluation for distant characters",
+        "Enable URO (Update Rate Optimization): reduce anim update rate for off-screen/distant actors",
+        "Set VisibilityBasedAnimTickOption to OnlyTickPoseWhenRendered",
+        "Simplify AnimBP state machines - fewer states, fewer blend nodes",
+        "Use distance-based LOD to switch to simpler animation at range",
+        "Profile with 'stat anim' to identify expensive animation evaluations"
+      ],
+      "tags": ["animation", "skeletal mesh", "anim blueprint", "lod", "uro", "cloth", "optimization"]
+    }
+  ]
+}

@@ -1,0 +1,203 @@
+{
+  "category": "crash",
+  "displayName": "Crash / Fatal Error",
+  "description": "Crashes, access violations, fatal errors, and engine assertions in UE5",
+  "entries": [
+    {
+      "id": "crash_001",
+      "title": "Access Violation after Actor is Garbage Collected",
+      "symptoms": ["access violation", "nullptr", "crash on play", "garbage collected", "dangling pointer"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Accessing a UObject pointer that has been garbage collected causes an access violation. This commonly happens when storing raw pointers to UObjects without marking them with UPROPERTY().",
+      "rootCause": "The Unreal garbage collector does not track raw C++ pointers. If a UObject is only referenced by a raw pointer (not a UPROPERTY), the GC considers it unreferenced and destroys it. The pointer becomes dangling.",
+      "solution": [
+        "Mark all UObject pointers with UPROPERTY() so the GC knows about them",
+        "Use TWeakObjectPtr<T> for non-owning references that may become invalid",
+        "Check IsValid() or ::IsValid(Ptr) before accessing pointers that might be stale",
+        "For delegates, use AddUObject (not AddRaw) to prevent calling into garbage-collected objects"
+      ],
+      "codeExample": "// BAD - GC doesn't know about this pointer\nAActor* MyActor;\n\n// GOOD - GC tracks this reference\nUPROPERTY()\nAActor* MyActor;\n\n// GOOD - weak reference for optional/non-owning refs\nTWeakObjectPtr<AActor> MyActorWeak;",
+      "tags": ["gc", "garbage collection", "uproperty", "pointer", "nullptr", "access violation"]
+    },
+    {
+      "id": "crash_002",
+      "title": "Crash in Constructor: Using World or Spawning Actors",
+      "symptoms": ["crash in constructor", "GetWorld returns null", "CDO crash", "default object crash"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Calling GetWorld(), SpawnActor(), or accessing gameplay systems in a constructor causes a crash because the Class Default Object (CDO) is constructed without a valid World.",
+      "rootCause": "Unreal constructs a Class Default Object (CDO) for every UCLASS at startup. The CDO has no World, no owning Actor, and no gameplay context. Code in the constructor runs for both the CDO and real instances.",
+      "solution": [
+        "Move gameplay logic from the constructor to BeginPlay()",
+        "Use OnConstruction() for editor-time setup that needs a World",
+        "If you must branch in the constructor, guard with: if (!HasAnyFlags(RF_ClassDefaultObject))",
+        "Use CreateDefaultSubobject<T>() for components only - this is the one thing constructors are for"
+      ],
+      "codeExample": "// BAD - crashes on CDO construction\nAMyActor::AMyActor() {\n    GetWorld()->SpawnActor<AActor>();  // GetWorld() is null for CDO\n}\n\n// GOOD - gameplay logic in BeginPlay\nvoid AMyActor::BeginPlay() {\n    Super::BeginPlay();\n    GetWorld()->SpawnActor<AOtherActor>(OtherActorClass);\n}",
+      "tags": ["constructor", "cdo", "class default object", "getworld", "spawnactor", "beginplay"]
+    },
+    {
+      "id": "crash_003",
+      "title": "Ensure/Check Assertion Failure",
+      "symptoms": ["ensure failed", "check failed", "assertion failed", "ensure condition", "fatal error"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "UE5 assertion macros (check, ensure, verify) halt execution when their condition is false. check() is fatal and crashes immediately. ensure() logs a callstack but continues (once). verify() is like check() but always evaluates the expression.",
+      "rootCause": "An assumption in the engine or your code was violated. The callstack in the log tells you exactly where. Common triggers: null pointer passed where valid object expected, array index out of bounds, invalid enum value, calling engine functions at wrong lifecycle stage.",
+      "solution": [
+        "Read the full log - the ensure/check message and callstack point to the exact problem",
+        "If it's YOUR check/ensure: the condition you assumed was true is false - fix the logic",
+        "If it's an ENGINE check: you're calling an API incorrectly or at the wrong time",
+        "Use 'ensure' for recoverable situations, 'check' for unrecoverable ones",
+        "In shipping builds, check() is compiled out - never rely on side effects inside check()"
+      ],
+      "codeExample": "// check() - fatal, crashes in debug/development builds\ncheck(MyPtr != nullptr);\n\n// ensure() - logs callstack, continues execution (fires once)\nif (ensure(MyPtr != nullptr)) {\n    MyPtr->DoSomething();\n}\n\n// verify() - like check but expression always evaluates\nverify(ImportantFunction());  // ImportantFunction runs even in shipping",
+      "tags": ["ensure", "check", "verify", "assertion", "fatal error", "callstack"]
+    },
+    {
+      "id": "crash_004",
+      "title": "Crash During Level Transition / Seamless Travel",
+      "symptoms": ["crash on level load", "crash on travel", "seamless travel crash", "pending kill", "level transition crash"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Crashes when transitioning between levels, often caused by references to actors in the old level that get destroyed, or by GameMode/GameState not surviving the travel.",
+      "rootCause": "During level transitions, actors from the old level are destroyed. If any object holds a reference to those actors and tries to access them after transition, it crashes. With seamless travel, only actors in the transition map persist. PlayerController persists but PlayerState may not unless explicitly handled.",
+      "solution": [
+        "Use GameInstance for data that must persist across level loads - it is never destroyed",
+        "For seamless travel, override GetSeamlessTravelActorList() to specify which actors survive",
+        "Clear all references to level-specific actors before triggering travel",
+        "Use soft object references (FSoftObjectPath) for assets to avoid hard reference loading issues",
+        "Implement SaveGame objects for complex persistent state"
+      ],
+      "tags": ["level", "travel", "seamless", "transition", "map", "load", "gameinstance"]
+    },
+    {
+      "id": "crash_005",
+      "title": "Hot Reload Crash / Corruption",
+      "symptoms": ["hot reload crash", "live coding crash", "corrupted blueprint", "class mismatch after reload", "CDO mismatch"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Hot Reload and Live Coding in UE5 can corrupt Blueprint state, cause CDO mismatches, or crash when structural changes are made to UCLASS definitions while the editor is running.",
+      "rootCause": "Hot Reload patches compiled code in memory but cannot safely update structural changes (new/removed UPROPERTY, changed class hierarchy, changed UENUM values). The CDO and Blueprint-compiled bytecode become out of sync with the new native code.",
+      "solution": [
+        "Prefer Live Coding (Ctrl+Alt+F11) over Hot Reload - it is more reliable",
+        "ALWAYS restart the editor after: adding/removing UPROPERTY/UFUNCTION, changing class inheritance, modifying USTRUCT/UENUM definitions",
+        "For header-only changes, always do a full editor restart",
+        "If Blueprints become corrupted: close editor, delete Binaries and Intermediate folders, rebuild",
+        "Use 'Build > Rebuild' in your IDE instead of Hot Reload for structural changes"
+      ],
+      "tags": ["hot reload", "live coding", "corruption", "blueprint", "cdo", "rebuild"]
+    },
+    {
+      "id": "crash_006",
+      "title": "Crash on PIE Exit (Play-In-Editor)",
+      "symptoms": ["crash on stop", "crash on pie exit", "crash ending play", "endplay crash", "destructor crash"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Crash when stopping Play-In-Editor session, often caused by accessing destroyed objects in EndPlay, improper timer/delegate cleanup, or async tasks completing after the world is torn down.",
+      "rootCause": "When PIE ends, the world and all actors are destroyed. If timers, async tasks, latent actions, or delegates fire after their owning actor is destroyed, they access invalid memory. EndPlay() is called during teardown but the world may already be partially destroyed.",
+      "solution": [
+        "Clear all timers in EndPlay(): GetWorldTimerManager().ClearAllTimersForObject(this)",
+        "Unbind all delegates in EndPlay()",
+        "For async tasks, check IsValid(this) or use weak pointers in lambdas",
+        "Use GetWorld()->bIsTearingDown to guard late-running code",
+        "Cancel any pending latent actions in EndPlay()"
+      ],
+      "codeExample": "void AMyActor::EndPlay(const EEndPlayReason::Type EndPlayReason) {\n    GetWorldTimerManager().ClearAllTimersForObject(this);\n    if (MyDelegate.IsBound()) MyDelegate.Unbind();\n    Super::EndPlay(EndPlayReason);\n}",
+      "tags": ["pie", "endplay", "timer", "delegate", "teardown", "exit", "stop play"]
+    },
+    {
+      "id": "crash_007",
+      "title": "Blueprint Infinite Recursion / Stack Overflow",
+      "symptoms": ["stack overflow", "infinite loop", "blueprint recursion", "maximum call stack", "out of stack space"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A Blueprint or C++ function calling itself infinitely, exhausting the call stack. Often happens with Construction Script calling functions that trigger reconstruction, or event dispatchers creating circular calls.",
+      "rootCause": "Common causes: Construction Script sets a property that triggers OnRep which triggers reconstruction. Event A dispatches to Event B which dispatches back to Event A. A BlueprintImplementableEvent calls its parent which calls the BP version again.",
+      "solution": [
+        "Add a recursion guard: a boolean flag that prevents re-entry",
+        "In Construction Script, avoid setting replicated properties or calling functions that trigger reconstruction",
+        "For event dispatchers, ensure no circular dispatch chains exist",
+        "Use a 'bIsInitializing' flag to skip reactive logic during setup",
+        "Check the callstack - the repeating function names reveal the cycle"
+      ],
+      "tags": ["recursion", "stack overflow", "infinite loop", "construction script", "event dispatcher"]
+    },
+    {
+      "id": "crash_008",
+      "title": "Crash Accessing Array/TArray Out of Bounds",
+      "symptoms": ["array index out of bounds", "tarray crash", "index none", "invalid index"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Accessing a TArray element at an index that doesn't exist. In development builds this triggers a check() assertion. In shipping builds it reads garbage memory.",
+      "rootCause": "The index is negative or >= the array's Num(). Common causes: off-by-one errors, iterating while removing elements, assuming an array is populated before it's been filled, using FindIndex result without checking for INDEX_NONE (-1).",
+      "solution": [
+        "Always check IsValidIndex(Index) before accessing elements",
+        "Use array.IsEmpty() before accessing [0]",
+        "When removing elements in a loop, iterate backwards or use RemoveAll()",
+        "Check FindIndex/Find results against INDEX_NONE before using them",
+        "Prefer ranged-for loops over index-based loops when possible"
+      ],
+      "codeExample": "// BAD\nAActor* First = MyArray[0];  // crashes if empty\n\n// GOOD\nif (MyArray.IsValidIndex(0)) {\n    AActor* First = MyArray[0];\n}\n\n// Removing while iterating - go backwards\nfor (int32 i = MyArray.Num() - 1; i >= 0; i--) {\n    if (ShouldRemove(MyArray[i])) MyArray.RemoveAt(i);\n}",
+      "tags": ["tarray", "array", "index", "out of bounds", "isvalidindex"]
+    },
+    {
+      "id": "crash_009",
+      "title": "Unresolved External Symbol / Linker Error Crash",
+      "symptoms": ["unresolved external symbol", "linker error", "LNK2019", "LNK2001", "undefined reference"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "The project compiles but fails to link because a function or variable declaration exists in a header but has no implementation, or a required module is not listed in Build.cs.",
+      "rootCause": "Missing function body for a declared function, missing module dependency in .Build.cs, or missing DLL export macro (YOURPROJECT_API) for cross-module symbols.",
+      "solution": [
+        "Check if the function has an implementation in the .cpp file",
+        "Add the required module to PublicDependencyModuleNames or PrivateDependencyModuleNames in your .Build.cs",
+        "For cross-module access, ensure the class uses the YOURMODULE_API export macro",
+        "Common missing modules: 'UMG' for widgets, 'AIModule' for AI, 'NavigationSystem' for navmesh",
+        "Run Build > Clean then Build > Rebuild after fixing"
+      ],
+      "tags": ["linker", "unresolved", "LNK2019", "build.cs", "module", "dependency", "external symbol"]
+    },
+    {
+      "id": "crash_010",
+      "title": "Crash in Multicast Delegate / Event Dispatcher",
+      "symptoms": ["delegate crash", "multicast crash", "broadcast crash", "event dispatcher crash", "stale delegate"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Crash when broadcasting a multicast delegate because one of the bound objects has been destroyed. The delegate still holds a reference to the destroyed object's function.",
+      "rootCause": "Dynamic multicast delegates (BlueprintAssignable) auto-clean stale bindings, but native multicast delegates (FOnSomething) do not. If you bind with AddRaw() or AddLambda(), the delegate has no way to know the object was destroyed.",
+      "solution": [
+        "Use AddUObject() instead of AddRaw() - it automatically unbinds when the UObject is destroyed",
+        "Always unbind in EndPlay() or BeginDestroy() as a safety net",
+        "For dynamic delegates (BlueprintAssignable), bindings are auto-cleaned - prefer these when possible",
+        "If using AddLambda(), capture a TWeakObjectPtr and check validity before executing"
+      ],
+      "codeExample": "// BAD - raw binding won't auto-unbind\nMyDelegate.AddRaw(this, &AMyActor::OnEvent);\n\n// GOOD - auto-unbinds when this UObject is destroyed\nMyDelegate.AddUObject(this, &AMyActor::OnEvent);\n\n// GOOD - weak pointer in lambda\nTWeakObjectPtr<AMyActor> WeakThis(this);\nMyDelegate.AddLambda([WeakThis]() {\n    if (WeakThis.IsValid()) WeakThis->OnEvent();\n});",
+      "tags": ["delegate", "multicast", "broadcast", "event dispatcher", "adduobject", "addraw"]
+    },
+    {
+      "id": "crash_011",
+      "title": "Editor Crash on Blueprint Compile",
+      "symptoms": ["blueprint compile crash", "editor crash compile", "cook error blueprint", "blueprint nativization crash"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "The editor crashes when compiling a Blueprint, often after C++ changes to the parent class that invalidate the Blueprint's compiled bytecode.",
+      "rootCause": "The Blueprint references functions, properties, or pins that no longer exist in the C++ parent class. Renaming/removing UPROPERTY or UFUNCTION without updating dependent Blueprints causes the BP compiler to access invalid metadata.",
+      "solution": [
+        "Use DeprecateProperty / DeprecateFunction metadata instead of deleting",
+        "Use Core Redirects in DefaultEngine.ini to redirect renamed classes/properties",
+        "If already corrupted: delete Intermediate/Saved folders, reopen editor, recompile BPs manually",
+        "Before removing C++ properties, search for Blueprint references using the Reference Viewer"
+      ],
+      "codeExample": "// Redirect a renamed property in DefaultEngine.ini\n[CoreRedirects]\n+PropertyRedirects=(OldName=\"MyOldProp\",NewName=\"MyNewProp\")\n+ClassRedirects=(OldName=\"/Script/MyGame.OldClassName\",NewName=\"/Script/MyGame.NewClassName\")",
+      "tags": ["blueprint", "compile", "editor crash", "core redirects", "rename", "deprecate"]
+    },
+    {
+      "id": "crash_012",
+      "title": "Crash from Threading / Async Operations on Game Thread",
+      "symptoms": ["game thread assertion", "not on game thread", "async crash", "thread safety", "concurrent modification"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Crash caused by modifying UObjects or accessing engine systems from a background thread. Most Unreal Engine APIs are not thread-safe and must be called from the Game Thread.",
+      "rootCause": "UObject creation/destruction, component modification, widget updates, and most engine subsystems are game-thread-only. Background threads that touch these systems cause race conditions or assertion failures.",
+      "solution": [
+        "Use AsyncTask(ENamedThreads::GameThread, [](){ ... }) to marshal work back to the game thread",
+        "Use FRunnable + game thread callback for background work that needs to update UObjects",
+        "UE5 tasks: UE::Tasks::Launch() for background work, then dispatch results to game thread",
+        "Never create, destroy, or modify UObjects from background threads",
+        "Use thread-safe containers (TQueue, TAtomic) for data shared between threads"
+      ],
+      "codeExample": "// Do heavy work on background thread, update UObject on game thread\nAsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]() {\n    FString Result = DoExpensiveWork();\n    \n    AsyncTask(ENamedThreads::GameThread, [this, Result]() {\n        MyTextBlock->SetText(FText::FromString(Result));\n    });\n});",
+      "tags": ["threading", "async", "game thread", "race condition", "concurrent", "asynctask"]
+    }
+  ]
+}

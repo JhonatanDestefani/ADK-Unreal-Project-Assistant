@@ -1,0 +1,166 @@
+{
+  "category": "ai-behavior",
+  "displayName": "AI / Behavior",
+  "description": "Behavior Trees, AI Controllers, EQS, navigation, perception, and AI decision-making in UE5",
+  "entries": [
+    {
+      "id": "ai_001",
+      "title": "Behavior Tree Not Running / AI Does Nothing",
+      "symptoms": ["behavior tree not running", "ai not moving", "bt not executing", "ai controller idle", "run behavior tree fails"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "An AI-controlled character has a Behavior Tree assigned but the tree never executes. The AI stands idle.",
+      "rootCause": "The Behavior Tree must be started explicitly via RunBehaviorTree() in the AI Controller, or set as the default BT in the AI Controller's properties. The Pawn must also have the correct AI Controller class assigned.",
+      "solution": [
+        "In your AI Controller, call RunBehaviorTree(BehaviorTreeAsset) in BeginPlay or OnPossess",
+        "Verify the Pawn's 'AI Controller Class' is set to your custom AIController (not the default)",
+        "Check 'Auto Possess AI' on the Pawn is set to 'Placed in World' or 'Spawned'",
+        "Ensure the Behavior Tree asset is valid and compiles without errors",
+        "Verify the Blackboard asset is assigned to the Behavior Tree",
+        "Use the Behavior Tree debugger (F5 during PIE, select the AI) to see the execution state"
+      ],
+      "codeExample": "// In your AI Controller\nvoid AMyAIController::OnPossess(APawn* InPawn) {\n    Super::OnPossess(InPawn);\n    if (BehaviorTreeAsset) {\n        RunBehaviorTree(BehaviorTreeAsset);\n    }\n}\n\n// Make sure the Pawn references this controller\n// In Pawn's constructor or Blueprint defaults:\n// AIControllerClass = AMyAIController::StaticClass();",
+      "tags": ["behavior tree", "ai controller", "runbehaviortree", "possess", "blackboard"]
+    },
+    {
+      "id": "ai_002",
+      "title": "AI Navigation Fails / MoveTo Returns No Path",
+      "symptoms": ["ai cant move", "moveto fails", "no path found", "navigation mesh missing", "navmesh not generated"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "The AI controller's MoveTo or Behavior Tree's MoveTo task fails with 'No Path' or the AI doesn't move to the target location.",
+      "rootCause": "No NavMesh covers the area. The NavMesh Bounds Volume doesn't encompass the play area, or the navmesh is not rebuilt after level changes. Obstacles may also block the path completely.",
+      "solution": [
+        "Add a NavMesh Bounds Volume that covers your entire playable area",
+        "Press 'P' in the editor viewport to visualize the navmesh (green = walkable)",
+        "After adding/moving geometry, rebuild navigation: Build > Build Paths",
+        "Check agent size: Navigation System > Supported Agents > Agent Radius/Height must fit through doorways",
+        "Use RecastNavMesh settings to tune cell size and agent parameters",
+        "For dynamic obstacles, ensure they have a Nav Modifier Component or Dynamic Obstacle flag",
+        "Enable 'Allow Partial Paths' if the AI should get as close as possible when full path is impossible"
+      ],
+      "tags": ["navigation", "navmesh", "moveto", "pathfinding", "nav bounds volume", "recast"]
+    },
+    {
+      "id": "ai_003",
+      "title": "Blackboard Value Not Being Set / Read Correctly",
+      "symptoms": ["blackboard key null", "blackboard value empty", "bt cant read blackboard", "setvalue not working", "key type mismatch"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Behavior Tree tasks or services can't read/write Blackboard values. Keys appear null or have wrong values.",
+      "rootCause": "The Blackboard key name is misspelled, the key type doesn't match what the task expects (Object vs Actor vs Vector), the key isn't defined in the Blackboard asset used by this BT, or the Blackboard Component reference is invalid.",
+      "solution": [
+        "Ensure the Behavior Tree references the correct Blackboard asset",
+        "Check key names match exactly (case-sensitive) between BT tasks and the Blackboard asset",
+        "Key type must match: 'Object' for UObjects, 'Class' filter must include the expected class",
+        "For Actor keys, the Blackboard key must be of type 'Object' with base class set to AActor",
+        "In C++ tasks, use GetBlackboardComponent() and verify it's not null",
+        "Use the Blackboard debugger during PIE to see current values"
+      ],
+      "codeExample": "// Setting a blackboard value in C++\nvoid AMyAIController::SetTarget(AActor* Target) {\n    if (UBlackboardComponent* BB = GetBlackboardComponent()) {\n        BB->SetValueAsObject(FName(\"TargetActor\"), Target);\n    }\n}\n\n// In a BT Task\nEBTNodeResult::Type UMyBTTask::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) {\n    UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();\n    AActor* Target = Cast<AActor>(BB->GetValueAsObject(GetSelectedBlackboardKey()));\n    if (!Target) return EBTNodeResult::Failed;\n    // ...\n}",
+      "tags": ["blackboard", "behavior tree", "key", "value", "setvalue", "getvalue"]
+    },
+    {
+      "id": "ai_004",
+      "title": "AI Perception Not Detecting Targets",
+      "symptoms": ["ai cant see player", "perception not working", "sight sense not triggering", "hearing not detecting", "aisense"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "AI Perception component doesn't detect actors. Sight, hearing, or damage senses never trigger.",
+      "rootCause": "The AI Perception Component is missing or misconfigured on the AI Controller. The target actor doesn't have an AI Perception Stimuli Source component. Sense parameters (sight radius, peripheral vision angle, hearing range) may be too restrictive.",
+      "solution": [
+        "Add UAIPerceptionComponent to your AI Controller (not the Pawn)",
+        "Configure at least one sense (Sight, Hearing, Damage, etc.) on the Perception Component",
+        "Add UAIPerceptionStimuliSourceComponent to actors that should be detectable",
+        "Register the correct stimuli on the source: RegisterForSense (e.g., UAISense_Sight)",
+        "For Sight: check SightRadius, LoseSightRadius, PeripheralVisionAngleDegrees",
+        "Bind to OnTargetPerceptionUpdated delegate to react to perception changes",
+        "Use 'AI Debug' (apostrophe key ') during PIE to visualize perception"
+      ],
+      "codeExample": "// AI Controller setup\nAMyAIController::AMyAIController() {\n    PerceptionComponent = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT(\"PerceptionComp\"));\n    SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT(\"SightConfig\"));\n    SightConfig->SightRadius = 3000.f;\n    SightConfig->LoseSightRadius = 3500.f;\n    SightConfig->PeripheralVisionAngleDegrees = 90.f;\n    SightConfig->DetectionByAffiliation.bDetectEnemies = true;\n    PerceptionComponent->ConfigureSense(*SightConfig);\n    PerceptionComponent->SetDominantSense(UAISense_Sight::StaticClass());\n}",
+      "tags": ["perception", "sight", "hearing", "aisense", "stimuli source", "detection"]
+    },
+    {
+      "id": "ai_005",
+      "title": "EQS Query Returns No Results",
+      "symptoms": ["eqs no results", "environment query empty", "eqs test fails", "no items generated", "query context wrong"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "An Environment Query System (EQS) query returns zero results, causing the Behavior Tree task that uses it to fail.",
+      "rootCause": "The query generator produces items outside the navmesh, the test filters are too strict (all items score 0 or are filtered out), or the query context (Querier, Target) is not set correctly on the Blackboard.",
+      "solution": [
+        "Open the EQS query in the EQS Testing Pawn to visualize results in the viewport",
+        "Check that the generator creates items on the navmesh (use 'Project to Navigation' option)",
+        "Review test scores - if all items score 0, the test conditions are too strict. Relax thresholds",
+        "Ensure query contexts resolve correctly: the Querier's Blackboard must have the target key set",
+        "Use 'Filter Only' mode on tests to see which test eliminates all items",
+        "Common issue: Distance test filtering out all items because no item is within the acceptable range"
+      ],
+      "tags": ["eqs", "environment query", "generator", "test", "context", "navmesh"]
+    },
+    {
+      "id": "ai_006",
+      "title": "Behavior Tree Task Never Finishes / AI Gets Stuck",
+      "symptoms": ["bt task stuck", "ai stuck on task", "task never completes", "behavior tree frozen", "infinite task"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A custom Behavior Tree task starts executing but never returns Success or Failure, blocking the entire tree from proceeding.",
+      "rootCause": "Custom BT tasks that return InProgress must eventually call FinishLatentTask(). If the completion condition is never met (target destroyed, path invalidated, etc.), the task runs forever. Also, TickTask may not be enabled.",
+      "solution": [
+        "Ensure your task calls FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded) or Failed when done",
+        "Add timeout logic: if the task runs for too long, fail it gracefully",
+        "If using TickTask, set bNotifyTick = true in the constructor",
+        "Handle edge cases: what if the target actor is destroyed mid-task? Check and abort",
+        "Use Abort handlers (OnTaskAbort) to clean up when the tree forces a branch change",
+        "For MoveTo tasks, bind to the OnMoveCompleted delegate"
+      ],
+      "codeExample": "UMyBTTask::UMyBTTask() {\n    bNotifyTick = true;  // Required for TickTask to be called\n    bNotifyTaskFinished = true;\n}\n\nvoid UMyBTTask::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds) {\n    // Check if task should complete\n    if (IsTaskDone()) {\n        FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);\n    } else if (ShouldAbort()) {\n        FinishLatentTask(OwnerComp, EBTNodeResult::Failed);\n    }\n}",
+      "tags": ["behavior tree", "task", "latent", "finishlatenttask", "stuck", "tick"]
+    },
+    {
+      "id": "ai_007",
+      "title": "AI Crowd Avoidance / Agents Overlapping",
+      "symptoms": ["ai overlapping", "crowd avoidance not working", "agents stacking", "ai pushing each other", "rvo avoidance"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Multiple AI characters walk through each other or stack on the same position instead of avoiding each other.",
+      "rootCause": "Crowd avoidance (RVO) is not enabled or configured, or the character movement component's avoidance settings are too weak. The detour crowd manager needs to be active.",
+      "solution": [
+        "Enable RVO Avoidance on the Character Movement Component: bUseRVOAvoidance = true",
+        "Set AvoidanceWeight and AvoidanceConsiderationRadius to appropriate values",
+        "Use the UCrowdManager for large groups: set 'Use Crowd Manager' in Navigation System settings",
+        "Set different avoidance groups for different AI types so they know what to avoid",
+        "Increase avoidance radius if agents still overlap",
+        "For formation-based movement, implement custom steering instead of relying on RVO alone"
+      ],
+      "tags": ["crowd", "avoidance", "rvo", "overlap", "detour", "steering", "formation"]
+    },
+    {
+      "id": "ai_008",
+      "title": "StateTree Not Transitioning Between States",
+      "symptoms": ["statetree stuck", "state not changing", "transition not firing", "statetree condition", "ue5 statetree"],
+      "ueVersions": ["5.2", "5.3", "5.4"],
+      "description": "UE5's StateTree (alternative to Behavior Trees) doesn't transition between states. The AI stays in one state even when conditions should trigger a change.",
+      "rootCause": "Transition conditions are evaluated in order and the first matching transition wins. If conditions are never met (wrong Blackboard values, wrong comparison, event not firing), no transition occurs.",
+      "solution": [
+        "Check transition conditions in the StateTree editor - hover over conditions to see their evaluation",
+        "Ensure the data (Blackboard, context) that conditions check is actually being updated",
+        "Transition priority matters: the first matching transition executes. Reorder if needed",
+        "For event-based transitions, ensure the event is actually being sent via SendStateTreeEvent",
+        "Use the StateTree debugger during PIE to see current state and condition evaluation",
+        "Add a fallback transition with no conditions as a safety net"
+      ],
+      "tags": ["statetree", "state machine", "transition", "condition", "event", "ue5"]
+    },
+    {
+      "id": "ai_009",
+      "title": "AI Stuck on NavMesh Edge / Can't Reach Location",
+      "symptoms": ["ai stuck on edge", "agent stuck on corner", "navmesh gap", "unreachable point", "partial path"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "AI characters get stuck on navmesh edges, corners, or at gaps between navmesh polygons. They jitter or stop moving at certain locations.",
+      "rootCause": "The navmesh has gaps from geometry that doesn't perfectly align, the agent radius is too large to fit through narrow passages, or the navmesh resolution is too coarse for the environment detail.",
+      "solution": [
+        "Visualize navmesh with 'P' key and look for gaps or missing coverage",
+        "Reduce Agent Radius in RecastNavMesh if agents get stuck in narrow areas",
+        "Add Nav Modifier Volumes to manually mark areas as walkable/not walkable",
+        "Increase Cell Size and Cell Height resolution for more accurate navmesh",
+        "Use Nav Link Proxies for jumps, drops, or areas requiring special movement",
+        "Set 'bAllowPartialPaths = true' in MoveTo requests so agents get as close as possible"
+      ],
+      "tags": ["navmesh", "stuck", "edge", "gap", "agent radius", "nav link", "pathfinding"]
+    }
+  ]
+}

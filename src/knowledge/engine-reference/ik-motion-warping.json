@@ -1,0 +1,97 @@
+{
+  "category": "ik-motion-warping",
+  "displayName": "IK & Motion Warping",
+  "description": "UE5 IK: foot placement, Two Bone IK, Full Body IK, CCDIK, and Motion Warping for root motion alignment",
+  "entries": [
+    {
+      "id": "ref_ik_001",
+      "title": "Inverse Kinematics (IK) Overview",
+      "description": "IK adjusts bone positions to reach target points — feet planted on uneven ground, hands gripping objects, heads looking at targets. UE5 provides IK solvers as AnimGraph nodes.",
+      "whatItIs": "Inverse Kinematics (IK) is a technique that calculates bone rotations to make an end effector (hand, foot) reach a target position. Unlike forward kinematics (playing authored animations), IK dynamically adapts the skeleton to the environment — planting feet on stairs, reaching for ledges, or aiming weapons at targets.",
+      "whenToUse": [
+        "Foot IK — planting feet on uneven terrain, stairs, and slopes so characters don't float or clip",
+        "Hand IK — gripping ledges, holding weapons, interacting with objects at varying heights",
+        "Look At — head and upper body turning to face a target (dialogue, aiming)",
+        "Aiming — adjusting the spine and arms to point a weapon at a dynamic target",
+        "Placing hands on walls when leaning or for touch feedback"
+      ],
+      "whenNotToUse": [
+        "When the animation already handles placement perfectly — authored animations for flat ground don't need foot IK",
+        "For full-body procedural animation with no authored base — IK works best as a layer on top of existing animations",
+        "For simple characters where slight floating doesn't matter (stylized, 2D, far-away NPCs)"
+      ],
+      "relatedClasses": [
+        "FAnimNode_TwoBoneIK",
+        "FAnimNode_CCDIK",
+        "FAnimNode_FABRIK",
+        "FAnimNode_LookAt",
+        "UAnimInstance",
+        "USkeletalMeshComponent",
+        "FAnimNode_FullBodyIK"
+      ],
+      "commonMistakes": [
+        "Not using traces to find the ground position for foot IK — the IK target must come from a line trace, not a guess",
+        "Setting IK blend weight to 1.0 instantly instead of interpolating — causes snapping instead of smooth adjustment",
+        "Applying IK before the base animation in the AnimGraph — IK should be applied after the base pose as a post-process",
+        "Not adjusting the pelvis/hips when feet are at different heights — one leg stretches while the other clips",
+        "Using Two Bone IK for chains with more than 2 bones — use CCDIK or FABRIK for longer chains"
+      ],
+      "keyPoints": [
+        "Two Bone IK: solves a 2-bone chain (upper arm + forearm, thigh + shin). Most common for hands and feet.",
+        "FABRIK (Forward And Backward Reaching IK): iterative solver for chains of any length. Good for tails, tentacles.",
+        "CCDIK (Cyclic Coordinate Descent): another multi-bone solver. Good for spines and long chains.",
+        "Full Body IK: solves the entire skeleton at once. More expensive but produces natural full-body results.",
+        "Look At: rotates a bone (head, spine) to face a target world location.",
+        "All IK nodes are AnimGraph nodes — add them after your base animation pose.",
+        "Effector Location: the target position the IK tries to reach (from a trace or gameplay logic).",
+        "Alpha (Blend Weight): 0=no IK, 1=full IK. Interpolate for smooth activation."
+      ],
+      "codeExample": "// Foot IK — set IK targets from traces in AnimInstance\nvoid UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds) {\n    Super::NativeUpdateAnimation(DeltaSeconds);\n    APawn* Pawn = TryGetPawnOwner();\n    if (!Pawn) return;\n    \n    // Trace from each foot bone to find ground\n    USkeletalMeshComponent* Mesh = Pawn->FindComponentByClass<USkeletalMeshComponent>();\n    if (!Mesh) return;\n    \n    FVector LeftFootLoc = Mesh->GetSocketLocation(TEXT(\"foot_l\"));\n    FVector RightFootLoc = Mesh->GetSocketLocation(TEXT(\"foot_r\"));\n    \n    // Trace down from each foot\n    FHitResult LeftHit, RightHit;\n    FVector TraceStart, TraceEnd;\n    \n    TraceStart = LeftFootLoc + FVector(0, 0, 50.f);\n    TraceEnd = LeftFootLoc - FVector(0, 0, 100.f);\n    Pawn->GetWorld()->LineTraceSingleByChannel(LeftHit, TraceStart, TraceEnd, ECC_Visibility);\n    \n    TraceStart = RightFootLoc + FVector(0, 0, 50.f);\n    TraceEnd = RightFootLoc - FVector(0, 0, 100.f);\n    Pawn->GetWorld()->LineTraceSingleByChannel(RightHit, TraceStart, TraceEnd, ECC_Visibility);\n    \n    // Set IK targets (used by Two Bone IK nodes in AnimGraph)\n    LeftFootIKTarget = LeftHit.bBlockingHit ? LeftHit.ImpactPoint : LeftFootLoc;\n    RightFootIKTarget = RightHit.bBlockingHit ? RightHit.ImpactPoint : RightFootLoc;\n    \n    // Smooth the IK blend\n    IKAlpha = FMath::FInterpTo(IKAlpha, Pawn->GetVelocity().Size() < 10.f ? 1.f : 0.f, DeltaSeconds, 10.f);\n}",
+      "tags": ["ik", "inverse kinematics", "foot ik", "two bone", "fabrik", "ccdik", "look at", "full body ik"]
+    },
+    {
+      "id": "ref_ik_002",
+      "title": "Motion Warping",
+      "description": "Motion Warping modifies root motion animations at runtime to align the character with dynamic targets — lunging to an enemy's exact position, landing on a ledge, or syncing with moving objects.",
+      "whatItIs": "UMotionWarpingComponent adjusts the root motion of an animation in real-time so that the character reaches a specific target location and/or rotation by the end of the animation. This enables authored animations to work with dynamic gameplay targets (enemies at varying distances, ledges at different heights).",
+      "whenToUse": [
+        "Melee attacks that need to close the gap to the target — lunge forward to wherever the enemy is",
+        "Ledge grabs and vaulting — the character needs to land exactly on the ledge regardless of height",
+        "Assassination/finisher animations — attacker needs to reach the exact position relative to the victim",
+        "Any root motion animation where the destination varies at runtime"
+      ],
+      "whenNotToUse": [
+        "Animations without root motion — motion warping only adjusts root motion, not in-place animations",
+        "When the character is already at the correct position — no warping needed",
+        "For precise physics-based movement — use AddImpulse or CharacterMovement instead",
+        "Simple translation that doesn't need an authored animation — just use movement interpolation"
+      ],
+      "relatedClasses": [
+        "UMotionWarpingComponent",
+        "UAnimNotifyState_MotionWarping",
+        "FMotionWarpingTarget",
+        "URootMotionModifier",
+        "UAnimMontage",
+        "UCharacterMovementComponent"
+      ],
+      "commonMistakes": [
+        "Not adding a MotionWarping AnimNotifyState to the montage — the component doesn't know which frames to warp",
+        "Setting the warp target after the montage starts playing — set it before or in the same frame as Play",
+        "Using motion warping on animations without root motion — it has nothing to warp",
+        "Not matching the WarpTargetName in the notify state with the name used in AddOrUpdateWarpTarget()",
+        "Warping over too long a distance — the character slides unrealistically. Keep warp distances reasonable relative to the animation."
+      ],
+      "keyPoints": [
+        "UMotionWarpingComponent: add to your character. Handles warp target registration and root motion modification.",
+        "AddOrUpdateWarpTarget(FMotionWarpingTarget): set the target location/rotation by name.",
+        "AnimNotifyState_MotionWarping: add to the montage timeline to define which frames are warped and the target name.",
+        "Root motion required: the animation must have root motion for warping to adjust anything.",
+        "Warp types: Translation (move to target), Rotation (face target), or both.",
+        "Multiple targets: different montage sections can warp to different named targets.",
+        "Remove target: RemoveWarpTarget(Name) when no longer needed."
+      ],
+      "codeExample": "// Setup: Add UMotionWarpingComponent to your character\nUPROPERTY(VisibleAnywhere)\nUMotionWarpingComponent* MotionWarpComp;\n\nAMyCharacter::AMyCharacter() {\n    MotionWarpComp = CreateDefaultSubobject<UMotionWarpingComponent>(TEXT(\"MotionWarp\"));\n}\n\n// Melee attack with lunge to target\nvoid AMyCharacter::MeleeAttack(AActor* Target) {\n    if (!Target || !AttackMontage) return;\n    \n    // Set warp target — character will reach this point during the montage\n    FMotionWarpingTarget WarpTarget;\n    WarpTarget.Name = TEXT(\"AttackTarget\");\n    WarpTarget.Location = Target->GetActorLocation();\n    WarpTarget.Rotation = (Target->GetActorLocation() - GetActorLocation()).Rotation();\n    MotionWarpComp->AddOrUpdateWarpTarget(WarpTarget);\n    \n    // Play the attack montage (which has a MotionWarping notify state\n    // with WarpTargetName = \"AttackTarget\")\n    PlayAnimMontage(AttackMontage);\n}",
+      "tags": ["motion warping", "root motion", "lunge", "alignment", "target", "warp", "melee", "ledge"]
+    }
+  ]
+}

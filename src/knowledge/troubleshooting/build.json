@@ -1,0 +1,167 @@
+{
+  "category": "build",
+  "displayName": "Build / Deployment",
+  "description": "Packaging, cooking, build errors, platform deployment, and shipping issues in UE5",
+  "entries": [
+    {
+      "id": "build_001",
+      "title": "Packaging Fails with Cook Errors",
+      "symptoms": ["packaging failed", "cook error", "failed to cook", "unknown cook failure", "package project fails"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Project packaging fails during the cook stage with asset errors, missing references, or unknown cook failures.",
+      "rootCause": "Cook errors typically come from: missing asset references (soft references to deleted assets), circular dependencies, assets with invalid properties, or Blueprint compilation errors that only surface during cooking.",
+      "solution": [
+        "Read the full Output Log - cook errors include the specific asset path that failed",
+        "Fix or redirect missing references using 'Asset Audit' (right-click asset > Audit)",
+        "Run 'Validate Assets' from the content browser to find issues before cooking",
+        "Delete Saved/Cooked and Intermediate folders, then retry",
+        "Enable 'Cook on the Fly' in editor settings for faster iteration",
+        "Check that all referenced plugins are enabled for the target platform",
+        "For map-specific errors, try cooking only the main game map first"
+      ],
+      "tags": ["cook", "packaging", "asset", "reference", "build", "deploy"]
+    },
+    {
+      "id": "build_002",
+      "title": "Shader Compilation Errors During Build",
+      "symptoms": ["shader compile error", "material compile failed", "shader permutation", "hlsl error", "missing shader"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Build or packaging fails because materials have shader compilation errors that don't appear in the editor.",
+      "rootCause": "The editor compiles shaders for your current platform/RHI only. Packaging compiles for the target platform which may have different shader model requirements. Materials using features unsupported on the target platform fail.",
+      "solution": [
+        "Check which target platform the shader fails on - the error log includes the shader platform",
+        "Ensure materials are compatible with the target shader model (e.g., mobile uses ES3.1)",
+        "Remove unsupported nodes from materials targeting mobile (no tessellation, limited texture samples)",
+        "Preview target platform shaders in editor: Change Preview Platform in toolbar",
+        "Clear derived data cache: delete DerivedDataCache folder and rebuild",
+        "For custom shaders, verify HLSL syntax matches the target platform compiler"
+      ],
+      "tags": ["shader", "material", "hlsl", "compile", "platform", "mobile", "shader model"]
+    },
+    {
+      "id": "build_003",
+      "title": "C++ Build Error: Module Not Found / Missing Include",
+      "symptoms": ["module not found", "cant find include", "no such file or directory", "missing module", "build.cs dependency"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "C++ compilation fails because a header file or module can't be found.",
+      "rootCause": "The module that contains the header is not listed in your .Build.cs dependencies. UE5 enforces strict module boundaries - you can't include headers from modules you don't depend on.",
+      "solution": [
+        "Add the required module to your .Build.cs file in PublicDependencyModuleNames or PrivateDependencyModuleNames",
+        "Use Public for modules whose types appear in your public headers",
+        "Use Private for modules only used in your .cpp files",
+        "Common modules to add: 'UMG' (widgets), 'AIModule' (AI), 'NavigationSystem' (nav), 'Niagara' (particles), 'EnhancedInput' (input)",
+        "For engine headers, check the UE docs to find which module provides the class",
+        "After updating Build.cs, regenerate project files (right-click .uproject > Generate Project Files)"
+      ],
+      "codeExample": "// YourProject.Build.cs\nPublicDependencyModuleNames.AddRange(new string[] {\n    \"Core\",\n    \"CoreUObject\",\n    \"Engine\",\n    \"InputCore\",\n    \"EnhancedInput\",   // For Enhanced Input System\n    \"UMG\",             // For UMG widgets\n    \"AIModule\",        // For AI classes\n    \"NavigationSystem\" // For NavMesh\n});",
+      "tags": ["module", "include", "build.cs", "dependency", "header", "compilation"]
+    },
+    {
+      "id": "build_004",
+      "title": "Packaging Succeeds but Game Crashes on Launch",
+      "symptoms": ["packaged game crashes", "shipping build crash", "works in editor not packaged", "missing asset in build", "pak file error"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "The project packages successfully but the built game crashes on launch or shortly after.",
+      "rootCause": "Common causes: assets loaded via string path (LoadObject with hardcoded path) that aren't included in the pak file, Blueprint-only references that the cooker can't discover, check/ensure assertions that fire only in shipping builds, or missing config settings.",
+      "solution": [
+        "Run the packaged build from command line to see the crash log: YourGame.exe -log",
+        "Check Saved/Logs/YourProject.log in the packaged build folder",
+        "Add assets to the 'Additional Asset Directories to Cook' in Project Settings > Packaging",
+        "Replace hardcoded LoadObject paths with UPROPERTY soft references",
+        "Test in 'Standalone Game' mode (PIE dropdown) before packaging - it's closer to packaged behavior",
+        "For shipping builds, wrap check() calls that should survive: use ensure() instead",
+        "Verify DefaultGame.ini has correct map/gamemode settings for the packaged build"
+      ],
+      "tags": ["packaged", "crash", "shipping", "pak", "asset", "standalone", "launch"]
+    },
+    {
+      "id": "build_005",
+      "title": "Build Time Extremely Slow",
+      "symptoms": ["slow build", "compilation takes forever", "long rebuild", "incremental build slow", "unity build"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "C++ compilation takes too long, either for full rebuilds or incremental builds.",
+      "rootCause": "Header changes trigger recompilation of all files that include that header. Including heavy engine headers in your headers (instead of forward-declaring) causes massive rebuild chains. Unity builds (combining .cpp files) help full builds but can slow incremental.",
+      "solution": [
+        "Forward-declare classes in headers instead of #including their headers",
+        "Move #includes to .cpp files whenever possible",
+        "Use the 'Include What You Use' (IWYU) model that UE5 encourages",
+        "For faster iteration, use Live Coding (Ctrl+Alt+F11) instead of full rebuilds",
+        "Enable Unreal Build Accelerator (UBA) for distributed builds if available",
+        "Set BuildConfiguration to use more parallel processes: -MaxParallelActions flag",
+        "Use an SSD for your project and Intermediate folders",
+        "Precompiled headers are automatic in UE - don't disable them"
+      ],
+      "tags": ["build time", "compilation", "slow", "iwyu", "forward declare", "live coding", "unity build"]
+    },
+    {
+      "id": "build_006",
+      "title": "Android / iOS Build Fails",
+      "symptoms": ["android build fail", "ios build error", "mobile packaging", "gradle error", "xcode error", "sdk not found"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Packaging for mobile platforms (Android/iOS) fails with SDK, gradle, or Xcode errors.",
+      "rootCause": "Mobile builds require platform SDKs (Android SDK/NDK, Xcode) to be properly installed and configured. Version mismatches between UE5 and the SDK, missing provisioning profiles (iOS), or incorrect gradle settings (Android) cause failures.",
+      "solution": [
+        "For Android: use the 'SetupAndroid' batch script in Engine/Extras/Android to configure SDK",
+        "Verify SDK paths in Project Settings > Platforms > Android/iOS",
+        "Check UE5 release notes for required SDK/NDK versions for your engine version",
+        "For iOS: ensure a valid provisioning profile and signing certificate are configured in Xcode",
+        "For Android: check gradle version compatibility - UE5 bundles its own gradle",
+        "Delete Intermediate and Build folders for the platform, then retry",
+        "Build for Development config first (not Shipping) to get better error messages"
+      ],
+      "tags": ["android", "ios", "mobile", "sdk", "ndk", "gradle", "xcode", "provisioning"]
+    },
+    {
+      "id": "build_007",
+      "title": "Plugin Build Errors / Plugin Not Loading",
+      "symptoms": ["plugin not loading", "plugin build error", "module could not be loaded", "plugin incompatible", "missing plugin module"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A plugin fails to compile or the editor says the plugin module could not be loaded.",
+      "rootCause": "The plugin was built for a different engine version, a required dependency module is missing, the plugin's .uplugin descriptor has errors, or binary-only plugins don't match the current build configuration.",
+      "solution": [
+        "Rebuild the plugin for your exact UE5 version - minor version differences can break binary compatibility",
+        "Check the Output Log for the specific module load error",
+        "Verify the .uplugin file has correct Module definitions and dependencies",
+        "For Marketplace plugins: re-download for your engine version from the Launcher",
+        "For source plugins: ensure all dependencies are listed in the plugin's .Build.cs",
+        "Try deleting Binaries and Intermediate folders inside the plugin directory and rebuilding",
+        "Check that the plugin's target platform matches your build target"
+      ],
+      "tags": ["plugin", "module", "uplugin", "marketplace", "binary", "compatibility"]
+    },
+    {
+      "id": "build_008",
+      "title": "Content Missing in Packaged Build",
+      "symptoms": ["missing content", "asset not found in build", "map not included", "data table empty in build", "config missing"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Assets, maps, or data that work in the editor are missing in the packaged build.",
+      "rootCause": "The cooker only includes assets that are referenced by the maps listed for cooking. Assets loaded dynamically (by string path, from data tables, or from runtime logic) are not automatically discovered and included.",
+      "solution": [
+        "Add maps to 'List of maps to include' in Project Settings > Packaging",
+        "Add asset directories to 'Additional Asset Directories to Cook' in Packaging settings",
+        "Use 'Additional Asset Directories to Package' for non-cooked files (configs, data)",
+        "Replace LoadObject string paths with UPROPERTY references or Primary Asset IDs",
+        "Use Asset Manager with Primary Asset Labels to explicitly include asset groups",
+        "For DataTables, ensure the DataTable asset itself is referenced from a cooked map or included explicitly"
+      ],
+      "tags": ["missing content", "cook", "package", "asset manager", "primary asset", "maps to include"]
+    },
+    {
+      "id": "build_009",
+      "title": "Dedicated Server Build Issues",
+      "symptoms": ["server build fails", "dedicated server crash", "server target", "no server module", "WITH_SERVER_CODE"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Building a dedicated server target fails, or the server build crashes at runtime.",
+      "rootCause": "The project doesn't have a Server .Target.cs file, or code uses client-only features (rendering, audio, widgets) in server code paths. The dedicated server has no renderer - any rendering code crashes.",
+      "solution": [
+        "Create a YourProjectServer.Target.cs file with Type = TargetType.Server",
+        "Guard client-only code with #if !UE_SERVER or !WITH_SERVER_CODE",
+        "Never access UMG widgets, materials, or audio on the server",
+        "Check that GameMode is set correctly for dedicated server (GameMode runs on server only)",
+        "Use IsRunningDedicatedServer() for runtime checks",
+        "Ensure server-required plugins are enabled for the Server target"
+      ],
+      "tags": ["dedicated server", "server build", "target", "ue_server", "headless", "multiplayer"]
+    }
+  ]
+}

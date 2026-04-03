@@ -1,0 +1,177 @@
+{
+  "category": "interfaces",
+  "displayName": "C++ & Blueprint Interfaces",
+  "description": "UE5 interfaces: UInterface/IInterface, Blueprint Interfaces, Execute_ calls, ImplementsInterface, and cross-class communication patterns",
+  "entries": [
+    {
+      "id": "ref_iface_001",
+      "title": "Interfaces Overview — Why and When",
+      "description": "Interfaces define a contract (set of functions) that any class can implement regardless of inheritance. They enable polymorphic communication between unrelated classes — the caller doesn't need to know the concrete type.",
+      "whatItIs": "A UE5 Interface is a pair of classes (UInterface + IInterface) that declares function signatures without implementation. Any UObject-derived class can implement the interface and provide its own logic, enabling the caller to invoke functions on any actor without knowing its concrete type.",
+      "whenToUse": [
+        "When multiple unrelated classes need the same behavior — e.g., doors, switches, NPCs, items all need an Interact() function",
+        "When you want loose coupling — the player calls Interact() without knowing if it's a door, chest, or NPC",
+        "When you need polymorphism without forcing a shared base class — interfaces work across any class hierarchy",
+        "When building modular systems: Damageable, Interactable, Saveable, Targetable interfaces that any actor can opt into",
+        "When Blueprint designers need to add behavior to actors without C++ changes"
+      ],
+      "whenNotToUse": [
+        "When only one class will ever implement the behavior — just put the function on that class directly",
+        "When you need shared state or data — interfaces only define functions, not variables (use a Component for shared data + behavior)",
+        "When a simple delegate/event would suffice for one-to-many communication",
+        "When all classes already share a common base class that can hold the function"
+      ],
+      "relatedClasses": [
+        "UInterface",
+        "IInterface",
+        "UObject",
+        "AActor",
+        "UBlueprintFunctionLibrary",
+        "UActorComponent"
+      ],
+      "commonMistakes": [
+        "Implementing functions on UInterface instead of IInterface — UInterface is for reflection only, IInterface holds the actual function declarations",
+        "Forgetting to add the interface to the class declaration (public IMyInterface) — the class compiles but ImplementsInterface returns false",
+        "Using Cast<IMyInterface> instead of the correct pattern — use Cast<UMyInterface> or query with ImplementsInterface + Execute_ calls",
+        "Not understanding the difference between BlueprintImplementableEvent and BlueprintNativeEvent in interfaces",
+        "Trying to add UPROPERTY variables to an interface — interfaces can only declare functions, not data"
+      ],
+      "keyPoints": [
+        "Interfaces enable calling functions on any actor without knowing its class",
+        "Two-class pattern: UMyInterface (reflection) + IMyInterface (function declarations)",
+        "Any class can implement multiple interfaces — not limited to single inheritance",
+        "Check if an actor implements it: Actor->GetClass()->ImplementsInterface(UMyInterface::StaticClass())",
+        "Call interface functions: IMyInterface::Execute_FuncName(Actor, Params) for BlueprintNativeEvent/BlueprintImplementableEvent",
+        "Or cast: if (IMyInterface* Impl = Cast<IMyInterface>(Actor)) Impl->FuncName()",
+        "Blueprint Interfaces: created in editor, no C++ needed. Good for designer-driven systems."
+      ],
+      "codeExample": "// === DECLARING AN INTERFACE ===\n// MyInterface.h\n#pragma once\n#include \"CoreMinimal.h\"\n#include \"UObject/Interface.h\"\n#include \"MyInterface.generated.h\"\n\nUINTERFACE(MinimalAPI, Blueprintable)\nclass UInteractable : public UInterface {\n    GENERATED_BODY()\n};\n\nclass IInteractable {\n    GENERATED_BODY()\npublic:\n    // Pure C++ interface function\n    virtual void Interact(AActor* Caller) = 0;\n    \n    // Or Blueprint-compatible version:\n    // UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category=\"Interaction\")\n    // void Interact(AActor* Caller);\n};",
+      "tags": ["interface", "uinterface", "iinterface", "polymorphism", "interact", "contract", "decoupling"]
+    },
+    {
+      "id": "ref_iface_002",
+      "title": "C++ Interface — Full Implementation Pattern",
+      "description": "The complete pattern for declaring a C++ interface, implementing it on an actor, and calling it from other code. This is the most common interface workflow in UE5 C++ projects.",
+      "whatItIs": "The full C++ workflow for UE5 interfaces: declare with UInterface/IInterface pair, implement on any class by inheriting IMyInterface, and call via Execute_ static functions or direct casting. BlueprintNativeEvent allows C++ defaults with Blueprint overrides.",
+      "whenToUse": [
+        "When you need C++ performance and type safety for the interface functions",
+        "When the interface has a default C++ implementation that Blueprints can optionally override (BlueprintNativeEvent)",
+        "When you want both C++ and Blueprint classes to implement the same interface",
+        "When building core gameplay systems that need compile-time checking"
+      ],
+      "whenNotToUse": [
+        "When only Blueprint classes will implement the interface — use a Blueprint Interface instead (simpler)",
+        "When you need a quick prototype without touching C++ code",
+        "When the interface function signature changes frequently during development — Blueprint interfaces are faster to iterate"
+      ],
+      "relatedClasses": [
+        "UInterface",
+        "IInterface",
+        "UClass",
+        "AActor",
+        "UKismetSystemLibrary"
+      ],
+      "commonMistakes": [
+        "Forgetting _Implementation suffix on BlueprintNativeEvent functions — the C++ body goes in FuncName_Implementation(), not FuncName()",
+        "Calling the function directly (Actor->Interact()) instead of using IInteractable::Execute_Interact(Actor) for BlueprintNativeEvent — direct calls skip Blueprint overrides",
+        "Not adding UFUNCTION() to interface functions that need Blueprint access — without it, Blueprints can't see or override the function",
+        "Implementing the interface but forgetting to override the virtual function — compiles but crashes or does nothing at runtime",
+        "Using ImplementsInterface check but then using a raw C++ cast instead of Execute_ — if the implementer is a Blueprint, the C++ cast fails"
+      ],
+      "keyPoints": [
+        "BlueprintNativeEvent: C++ provides default, Blueprint can override. Body in FuncName_Implementation().",
+        "BlueprintImplementableEvent: no C++ body, Blueprint MUST implement it.",
+        "BlueprintCallable: function is callable from Blueprint but implemented in C++ only.",
+        "Execute_FuncName(Object, Params): static function that correctly dispatches to C++ or Blueprint implementation.",
+        "Implement by inheriting: class AMyDoor : public AActor, public IInteractable",
+        "Check at runtime: Actor->Implements<UInteractable>() or Actor->GetClass()->ImplementsInterface()",
+        "Multiple interfaces: class AMyActor : public AActor, public IInteractable, public IDamageable"
+      ],
+      "codeExample": "// === FULL PATTERN: Interactable Interface ===\n\n// --- Interface Declaration (Interactable.h) ---\nUINTERFACE(MinimalAPI, Blueprintable)\nclass UInteractable : public UInterface {\n    GENERATED_BODY()\n};\n\nclass IInteractable {\n    GENERATED_BODY()\npublic:\n    UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category=\"Interaction\")\n    FText GetInteractText();\n    \n    UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category=\"Interaction\")\n    void Interact(AActor* Caller);\n};\n\n// --- Implementing on a Door (Door.h) ---\nUCLASS()\nclass ADoor : public AActor, public IInteractable {\n    GENERATED_BODY()\npublic:\n    // _Implementation suffix is required for BlueprintNativeEvent\n    virtual FText GetInteractText_Implementation() override {\n        return bIsOpen ? FText::FromString(\"Close Door\") : FText::FromString(\"Open Door\");\n    }\n    \n    virtual void Interact_Implementation(AActor* Caller) override {\n        bIsOpen = !bIsOpen;\n        PlayDoorAnimation();\n    }\n    \nprivate:\n    bool bIsOpen = false;\n};\n\n// --- Calling from Player (PlayerCharacter.cpp) ---\nvoid AMyPlayer::TryInteract() {\n    FHitResult Hit;\n    // Line trace forward...\n    \n    AActor* HitActor = Hit.GetActor();\n    if (HitActor && HitActor->Implements<UInteractable>()) {\n        // This correctly calls Blueprint or C++ implementation\n        IInteractable::Execute_Interact(HitActor, this);\n        \n        FText Text = IInteractable::Execute_GetInteractText(HitActor);\n        ShowInteractUI(Text);\n    }\n}",
+      "tags": ["c++ interface", "blueprint native event", "implementation", "execute", "interact", "implements"]
+    },
+    {
+      "id": "ref_iface_003",
+      "title": "Blueprint Interface — No C++ Required",
+      "description": "Blueprint Interfaces are created entirely in the editor. They define functions that any Blueprint can implement, enabling cross-Blueprint communication without C++ and without knowing the other Blueprint's class.",
+      "whatItIs": "A Blueprint Interface is an editor-only asset that declares function signatures (with optional inputs/outputs) that any Blueprint class can implement. Unlike C++ interfaces, they require zero code — everything is done visually in the editor.",
+      "whenToUse": [
+        "When designers need to define and implement interfaces without C++ involvement",
+        "Rapid prototyping of interaction systems, damage systems, or any cross-actor communication",
+        "When all implementing classes are Blueprints (no C++ classes need to implement it)",
+        "Simple projects or game jams where speed matters more than C++ performance"
+      ],
+      "whenNotToUse": [
+        "When you need a C++ default implementation — use a C++ BlueprintNativeEvent interface instead",
+        "When interface functions are performance-critical (called hundreds of times per frame) — C++ interfaces are faster",
+        "When you need compile-time type checking in C++ code that calls the interface"
+      ],
+      "relatedClasses": [
+        "UInterface",
+        "UBlueprintInterface",
+        "UEdGraphSchema_K2",
+        "UBlueprint"
+      ],
+      "commonMistakes": [
+        "Sending a message to an actor that doesn't implement the interface and expecting an error — it silently does nothing, which can be hard to debug",
+        "Not implementing all functions from the interface in the Blueprint — unimplemented functions silently return default values",
+        "Confusing 'Add Interface' in Class Settings with 'Implement Interface' — you must do both: add the interface AND implement its functions in the event graph",
+        "Returning values from interface functions without setting the output pins in the implementation — returns zero/empty/false by default",
+        "Creating a new Blueprint Interface for every actor-to-actor call instead of reusing general-purpose interfaces"
+      ],
+      "keyPoints": [
+        "Create: Content Browser > Blueprint > Blueprint Interface",
+        "Define functions in the interface editor — set inputs, outputs, and names",
+        "Implement: open Blueprint > Class Settings > Interfaces > Add. Then implement each function in the EventGraph.",
+        "Call: use 'Send Message' node or 'Interface Call' to call functions on any actor — no cast needed",
+        "Does Implement Interface: Blueprint node to check if an actor implements it before calling",
+        "Return values: add output pins to interface functions. They work as function calls with returns.",
+        "One Blueprint can implement multiple interfaces simultaneously"
+      ],
+      "codeExample": "// Blueprint Interface workflow (described for reference):\n//\n// 1. Create BPI_Interactable in Content Browser > Blueprint > Blueprint Interface\n// 2. Add function: Interact(Caller: Actor) and GetInteractText() -> Text\n// 3. Open BP_Door > Class Settings > Interfaces > Add BPI_Interactable\n// 4. In EventGraph: right-click > Add Event > Interact (from BPI_Interactable)\n// 5. Implement the logic in the EventGraph\n//\n// Calling from another Blueprint:\n// 1. Get reference to the target actor\n// 2. Use 'Does Implement Interface' node to check (optional but recommended)\n// 3. Use 'Interact (Message)' node — this calls through the interface\n//\n// In C++ calling a Blueprint Interface:\nif (Actor->GetClass()->ImplementsInterface(UInteractable::StaticClass())) {\n    IInteractable::Execute_Interact(Actor, this);\n}",
+      "tags": ["blueprint interface", "no code", "message", "visual scripting", "designer", "prototype"]
+    },
+    {
+      "id": "ref_iface_004",
+      "title": "Common Interface Patterns — Interactable, Damageable, Saveable",
+      "description": "Real-world interface patterns used in UE5 projects. These three interfaces (Interactable, Damageable, Saveable) demonstrate how interfaces solve common gameplay architecture problems.",
+      "whatItIs": "A collection of battle-tested interface patterns that appear in most UE5 projects. Each one decouples a gameplay system (interaction, damage, saving) from specific actor types, allowing any actor to participate by implementing the interface.",
+      "whenToUse": [
+        "When building an interaction system that works with doors, NPCs, items, vehicles, and any future interactable type",
+        "When building a damage system where different actors react differently to damage (characters lose HP, barrels explode, walls crack)",
+        "When building a save system that needs to ask each actor what data it wants to save and restore",
+        "When you want to add a new actor type to an existing system without modifying any existing code"
+      ],
+      "whenNotToUse": [
+        "For one-off interactions between two specific classes — a direct function call or event is simpler",
+        "When using GAS for damage — GAS has its own targeting and effect application that replaces a Damageable interface",
+        "When the interface would have only one implementer — premature abstraction"
+      ],
+      "relatedClasses": [
+        "UInterface",
+        "IInterface",
+        "AActor",
+        "UActorComponent",
+        "UGameplayStatics",
+        "USaveGame"
+      ],
+      "commonMistakes": [
+        "Making interfaces too granular (one per function) instead of grouping related functions — IInteractable with Interact() + GetInteractText() + CanInteract() is better than three separate interfaces",
+        "Making interfaces too broad (one god-interface with 20 functions) — split by domain: IInteractable, IDamageable, ISaveable",
+        "Not providing a CanDoX() check function alongside DoX() — callers need to know if the action is valid before performing it",
+        "Duplicating interface logic across implementers instead of using a shared Component — if 10 classes have the same Interact logic, put it in a UInteractionComponent",
+        "Not considering that interfaces work on Components too — you can implement IInteractable on a UActorComponent, not just Actors"
+      ],
+      "keyPoints": [
+        "IInteractable: Interact(Caller), GetInteractText(), CanInteract(Caller) — used by player interaction traces",
+        "IDamageable: ApplyDamage(Amount, Type, Instigator), GetHealth(), IsAlive() — alternative to UE5's built-in damage if you need more control",
+        "ISaveable: GetSaveData() -> FSaveStruct, LoadSaveData(FSaveStruct) — each actor controls its own serialization",
+        "ITargetable: CanBeTargeted(Targeter), GetTargetLocation(), GetTargetPriority() — for AI and lock-on systems",
+        "ITeamMember: GetTeamId(), GetTeamAttitude(Other) — for friend/foe identification",
+        "Pattern: check CanX() → do X() → react to result. Always provide a validation function."
+      ],
+      "codeExample": "// === DAMAGEABLE INTERFACE ===\nUINTERFACE(Blueprintable)\nclass UDamageable : public UInterface { GENERATED_BODY() };\n\nclass IDamageable {\n    GENERATED_BODY()\npublic:\n    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)\n    float ApplyDamage(float Amount, const FDamageInfo& Info);\n    \n    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)\n    bool IsAlive();\n    \n    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)\n    float GetCurrentHealth();\n};\n\n// Character implements it\nclass AMyCharacter : public ACharacter, public IDamageable {\n    GENERATED_BODY()\n    float Health = 100.f;\n    \n    virtual float ApplyDamage_Implementation(float Amount, const FDamageInfo& Info) override {\n        Health = FMath::Max(Health - Amount, 0.f);\n        if (Health <= 0.f) Die();\n        return Amount;\n    }\n    virtual bool IsAlive_Implementation() override { return Health > 0.f; }\n    virtual float GetCurrentHealth_Implementation() override { return Health; }\n};\n\n// Barrel implements it differently\nclass AExplodingBarrel : public AActor, public IDamageable {\n    GENERATED_BODY()\n    float Integrity = 50.f;\n    \n    virtual float ApplyDamage_Implementation(float Amount, const FDamageInfo& Info) override {\n        Integrity -= Amount;\n        if (Integrity <= 0.f) Explode();  // Different reaction!\n        return Amount;\n    }\n    virtual bool IsAlive_Implementation() override { return Integrity > 0.f; }\n    virtual float GetCurrentHealth_Implementation() override { return Integrity; }\n};\n\n// Caller doesn't care about the type\nvoid AMyWeapon::OnHit(AActor* HitActor) {\n    if (HitActor->Implements<UDamageable>()) {\n        IDamageable::Execute_ApplyDamage(HitActor, 25.f, DamageInfo);\n    }\n}",
+      "tags": ["interface pattern", "interactable", "damageable", "saveable", "targetable", "architecture", "design pattern"]
+    }
+  ]
+}

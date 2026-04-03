@@ -1,0 +1,311 @@
+{
+  "category": "utility-functions",
+  "displayName": "Utility Classes & Functions",
+  "description": "Most-used utility classes: UGameplayStatics, UKismetSystemLibrary, UKismetMathLibrary, FMath, and common helper functions",
+  "entries": [
+    {
+      "id": "ref_util_001",
+      "title": "UGameplayStatics — The Most Used Utility Class",
+      "description": "UGameplayStatics is a static Blueprint function library providing quick access to the most common gameplay operations: spawning effects, playing sounds, getting players, applying damage, and more.",
+      "whatItIs": "UGameplayStatics is a static-only UBlueprintFunctionLibrary that serves as a grab-bag of the most frequently needed gameplay operations. It is the single most-called utility class in typical UE5 projects, accessible from both C++ and Blueprints without needing an instance.",
+      "whenToUse": [
+        "When you need quick access to the player character, controller, game mode, or game state from any context",
+        "When applying damage through the UE5 damage framework (ApplyDamage, ApplyRadialDamage, ApplyPointDamage)",
+        "When playing sounds or spawning particle effects at world locations",
+        "When loading a new level or querying the current level name",
+        "When you need a one-off gameplay query like GetAllActorsOfClass or PredictProjectilePath",
+        "When setting global time dilation for slow-motion effects"
+      ],
+      "whenNotToUse": [
+        "When you already have a direct reference to the object you need — calling GetPlayerCharacter every frame is wasteful if you can cache the pointer",
+        "For GetAllActorsOfClass in Tick — this is extremely expensive and results should be cached or replaced with TActorIterator or tagging systems",
+        "When you need Niagara particle systems — use UNiagaraFunctionLibrary instead of the legacy Cascade SpawnEmitter functions",
+        "When you need multiplayer-aware player access — GetPlayerCharacter(World, 0) only gets player index 0 and is a single-player shorthand"
+      ],
+      "relatedClasses": [
+        "UKismetSystemLibrary",
+        "UKismetMathLibrary",
+        "UNiagaraFunctionLibrary",
+        "AGameModeBase",
+        "APlayerController",
+        "UGameInstance",
+        "UDamageType"
+      ],
+      "commonMistakes": [
+        "Calling GetAllActorsOfClass every frame instead of caching the result or using event-driven lookup",
+        "Using GetPlayerCharacter(World, 0) in multiplayer — this only returns the local first player, not the replicated character",
+        "Forgetting that OpenLevel is a hard load that destroys all current actors — use seamless travel for multiplayer",
+        "Using SpawnEmitterAtLocation for Niagara systems — it only works with legacy Cascade particle systems",
+        "Setting GlobalTimeDilation to 0 which freezes everything including your own unpause logic"
+      ],
+      "keyPoints": [
+        "GetPlayerCharacter(World, 0): get the first player's character (single-player shorthand)",
+        "GetPlayerController(World, 0): get the first player controller",
+        "GetPlayerCameraManager(World, 0): get the camera manager",
+        "GetGameMode(), GetGameState(), GetGameInstance(): quick accessors",
+        "ApplyDamage(Actor, Damage, Instigator, Causer, DamageType): applies damage through the damage framework",
+        "ApplyPointDamage() / ApplyRadialDamage(): directional and area damage variants",
+        "PlaySoundAtLocation(World, Sound, Location, Rotation, VolumeMultiplier, PitchMultiplier)",
+        "PlaySound2D(World, Sound): plays non-spatialized audio",
+        "SpawnEmitterAtLocation(): spawn a particle system at a point",
+        "SpawnEmitterAttached(): spawn particles attached to a component",
+        "OpenLevel(World, LevelName) / OpenLevelBySoftObjectPtr(): change maps",
+        "GetCurrentLevelName(): get the current map name",
+        "SetGlobalTimeDilation(World, Dilation): slow-mo or speed-up (1.0 = normal)",
+        "GetAllActorsOfClass(World, Class, OutActors): find all actors of a type (expensive — cache results)",
+        "PredictProjectilePath(): simulates a projectile arc for trajectory preview"
+      ],
+      "codeExample": "// Common UGameplayStatics usage\n\n// Get player\nACharacter* Player = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);\n\n// Apply damage\nUGameplayStatics::ApplyDamage(TargetActor, 50.f, GetController(), this, UDamageType::StaticClass());\n\n// Play sound\nUGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());\n\n// Spawn particles\nUGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplosionFX, HitLocation, HitRotation);\n\n// Open level\nUGameplayStatics::OpenLevel(GetWorld(), TEXT(\"MainMenu\"));\n\n// Slow motion\nUGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.25f);",
+      "tags": ["gameplay statics", "utility", "spawn", "sound", "damage", "player", "emitter", "level"]
+    },
+    {
+      "id": "ref_util_002",
+      "title": "UKismetSystemLibrary — System Utilities",
+      "description": "UKismetSystemLibrary provides system-level utilities: debug drawing, traces with debug visualization, print strings, platform info, and more.",
+      "whatItIs": "UKismetSystemLibrary is a static Blueprint function library focused on system-level operations and debugging tools. It wraps trace functions with built-in debug visualization, provides PrintString for on-screen/log output, and includes platform utility queries.",
+      "whenToUse": [
+        "When you need trace functions (line, sphere, box, capsule) with built-in debug drawing for rapid prototyping",
+        "When using PrintString for quick on-screen debug output during development",
+        "When you need to draw debug shapes (lines, spheres, boxes, arrows) to visualize game logic",
+        "When checking if a UObject is valid and not pending kill via IsValid",
+        "When checking if an actor implements an interface at runtime via DoesImplementInterface",
+        "When you need to quit the application programmatically"
+      ],
+      "whenNotToUse": [
+        "In shipping/release builds for debug drawing — wrap calls in #if !UE_BUILD_SHIPPING or use DrawDebugType::None",
+        "For high-performance traces in Tick — use the raw FCollisionQueryParams-based World->LineTraceSingleByChannel directly to avoid overhead",
+        "For permanent in-game visual lines or shapes — use procedural mesh, spline mesh, or decals instead of debug draw",
+        "For user-facing log output — PrintString is for developers; use UMG/Slate widgets for player-facing text"
+      ],
+      "relatedClasses": [
+        "UGameplayStatics",
+        "UWorld",
+        "FHitResult",
+        "FCollisionQueryParams",
+        "EDrawDebugTrace",
+        "ETraceTypeQuery",
+        "DrawDebugHelpers"
+      ],
+      "commonMistakes": [
+        "Leaving PrintString and DrawDebug calls in shipping builds — they add overhead and look unprofessional",
+        "Using UKismetSystemLibrary traces in performance-critical code when raw UWorld traces would be faster",
+        "Confusing IsValid(Object) with a simple null check — IsValid also checks PendingKill state which a raw pointer check does not",
+        "Passing EDrawDebugTrace::ForDuration with a 0 duration, causing debug lines to disappear immediately",
+        "Forgetting to populate the ActorsToIgnore array when self-hits are causing false positives"
+      ],
+      "keyPoints": [
+        "PrintString(World, String, bPrintToScreen, bPrintToLog, Color, Duration): debug output",
+        "DrawDebugLine, DrawDebugSphere, DrawDebugBox, DrawDebugArrow: visual debug shapes",
+        "LineTraceSingle (with DrawDebugType): line trace WITH optional debug visualization built-in",
+        "SphereTraceSingle, BoxTraceSingle, CapsuleTraceSingle: sweep traces with debug drawing",
+        "LineTraceMulti: returns all hits, not just the first",
+        "IsValid(Object): checks if UObject reference is valid and not pending kill",
+        "DoesImplementInterface(Object, InterfaceClass): check if an actor implements an interface",
+        "GetDisplayName(Object): human-readable name for debug output",
+        "SetTimer, ClearTimer (Blueprint versions): timer utilities",
+        "QuitGame(): exits the application"
+      ],
+      "codeExample": "// Debug print\nUKismetSystemLibrary::PrintString(GetWorld(), TEXT(\"Hello!\"), true, true, FLinearColor::Green, 5.f);\n\n// Traced line with debug visualization\nFHitResult Hit;\nbool bHit = UKismetSystemLibrary::LineTraceSingle(\n    GetWorld(), Start, End,\n    UEngineTypes::ConvertToTraceType(ECC_Visibility),\n    false, TArray<AActor*>(), // Actors to ignore\n    EDrawDebugTrace::ForDuration,\n    Hit, true, // bIgnoreSelf\n    FLinearColor::Red, FLinearColor::Green, 5.f\n);\n\n// Draw debug sphere\nUKismetSystemLibrary::DrawDebugSphere(GetWorld(), Location, 50.f, 12, FLinearColor::Blue, 5.f);",
+      "tags": ["kismet", "system library", "debug", "print string", "draw debug", "trace", "quit"]
+    },
+    {
+      "id": "ref_util_003",
+      "title": "FMath — Math Utilities",
+      "description": "FMath is UE5's math utility class providing clamping, interpolation, random numbers, angle operations, and common math functions used constantly in gameplay code.",
+      "whatItIs": "FMath is a core engine struct containing static math helper functions used in virtually every UE5 project. It provides framerate-independent interpolation, clamping, random number generation, trigonometry, and float comparison utilities that form the backbone of gameplay math.",
+      "whenToUse": [
+        "When clamping values to a valid range (health, speed, UI percentages)",
+        "When smoothly interpolating values over time — FInterpTo, VInterpTo, and RInterpTo are framerate-independent and ideal for Tick",
+        "When generating random numbers with FMath::RandRange for gameplay variation",
+        "When comparing floating-point values where exact equality is unreliable — use IsNearlyEqual or IsNearlyZero",
+        "When remapping a value from one range to another with GetMappedRangeValueClamped",
+        "When converting between degrees and radians for trigonometric calculations"
+      ],
+      "whenNotToUse": [
+        "When UKismetMathLibrary already provides a more convenient Blueprint-friendly wrapper for the same operation",
+        "For complex curve-based interpolation — use UCurveFloat or FRuntimeFloatCurve instead of manual Lerp",
+        "For deterministic multiplayer random — FMath::RandRange uses a global RNG; use FRandomStream with a shared seed instead",
+        "For SIMD-optimized batch math on large data sets — consider VectorRegister intrinsics or UE5's ISPC support"
+      ],
+      "relatedClasses": [
+        "FVector",
+        "FRotator",
+        "FTransform",
+        "FQuat",
+        "UKismetMathLibrary",
+        "FRandomStream",
+        "UCurveFloat",
+        "FVector2D"
+      ],
+      "commonMistakes": [
+        "Using FMath::Lerp in Tick without DeltaTime — this gives framerate-dependent results; use FInterpTo instead",
+        "Passing an Alpha > 1 or < 0 to Lerp and expecting it to clamp — Lerp extrapolates; use FMath::Clamp on the alpha",
+        "Using FMath::RandRange in networked games without a synchronized seed, causing desync between client and server",
+        "Comparing floats with == instead of FMath::IsNearlyEqual, leading to subtle bugs from floating-point imprecision",
+        "Forgetting that FMath::Sin/Cos take radians, not degrees — use FMath::DegreesToRadians or UKismetMathLibrary::DegSin"
+      ],
+      "keyPoints": [
+        "FMath::Clamp(Value, Min, Max): restrict a value to a range. Use everywhere.",
+        "FMath::Lerp(A, B, Alpha): linear interpolation. Alpha 0=A, 1=B. Core of smooth movement.",
+        "FMath::FInterpTo(Current, Target, DeltaTime, Speed): smooth interpolation over time (framerate-independent)",
+        "FMath::VInterpTo(): same but for FVector. RInterpTo() for FRotator.",
+        "FMath::RandRange(Min, Max): random int or float in range (inclusive)",
+        "FMath::Abs(Value): absolute value",
+        "FMath::FloorToInt(), CeilToInt(), RoundToInt(): float to int conversions",
+        "FMath::DegreesToRadians(), RadiansToDegrees(): angle conversion",
+        "FMath::Sin(), Cos(), Atan2(): trig functions (radians)",
+        "FMath::IsNearlyEqual(A, B, Tolerance): float comparison with epsilon",
+        "FMath::IsNearlyZero(Value, Tolerance): near-zero check",
+        "FMath::GetMappedRangeValueClamped(): remap a value from one range to another"
+      ],
+      "codeExample": "// Clamp health\nHealth = FMath::Clamp(Health - Damage, 0.f, MaxHealth);\n\n// Smooth camera follow (in Tick)\nFVector NewLoc = FMath::VInterpTo(GetActorLocation(), TargetLocation, DeltaTime, 5.f);\nSetActorLocation(NewLoc);\n\n// Smooth rotation\nFRotator NewRot = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, 10.f);\nSetActorRotation(NewRot);\n\n// Linear interpolation for UI\nfloat HealthPercent = FMath::Lerp(0.f, 1.f, CurrentHealth / MaxHealth);\n\n// Random\nint32 RandomDamage = FMath::RandRange(10, 50);\nfloat RandomAngle = FMath::RandRange(0.f, 360.f);\n\n// Remap value from [0,100] to [0,1]\nfloat Normalized = FMath::GetMappedRangeValueClamped(\n    FVector2D(0.f, 100.f), FVector2D(0.f, 1.f), RawValue\n);",
+      "tags": ["fmath", "clamp", "lerp", "interp", "random", "math", "interpolation", "remap"]
+    },
+    {
+      "id": "ref_util_004",
+      "title": "FVector, FRotator, FTransform — Core Math Types",
+      "description": "The three most used spatial math types in UE5. FVector for positions/directions, FRotator for orientations, FTransform for the full position+rotation+scale.",
+      "whatItIs": "FVector, FRotator, and FTransform are the fundamental spatial math types in UE5. FVector represents 3D positions, directions, and velocities; FRotator stores orientation as Pitch/Yaw/Roll in degrees; and FTransform combines location, rotation (as FQuat), and scale into a single struct used throughout the engine's transform hierarchy.",
+      "whenToUse": [
+        "FVector: whenever you need to represent a 3D position, direction, velocity, or offset",
+        "FRotator: when working with human-readable orientation in degrees (camera angles, actor facing, aim direction)",
+        "FTransform: when you need to store or pass a complete position + rotation + scale, such as spawn transforms or socket transforms",
+        "FQuat: when performing complex rotation composition, interpolation (Slerp), or when you need to avoid gimbal lock"
+      ],
+      "whenNotToUse": [
+        "FRotator for composing multiple rotations — use FQuat to avoid gimbal lock and numerical drift",
+        "FVector::Size() in tight loops for distance comparisons — use SizeSquared() or DistSquared() to avoid the square root",
+        "FTransform when you only need position — passing a full transform is heavier than passing an FVector",
+        "Raw FVector math for complex skeletal transforms — use the bone transform API instead which handles spaces correctly"
+      ],
+      "relatedClasses": [
+        "FMath",
+        "FQuat",
+        "FMatrix",
+        "FVector2D",
+        "FVector4",
+        "USceneComponent",
+        "UKismetMathLibrary"
+      ],
+      "commonMistakes": [
+        "Using Normalize() on a zero-length vector which produces NaN — always use GetSafeNormal() which returns ZeroVector for zero-length input",
+        "Confusing FRotator component order — it is Pitch (Y), Yaw (Z), Roll (X), NOT X/Y/Z",
+        "Using FVector::Dist() in performance-critical loops — FVector::DistSquared() avoids the expensive square root and works fine for comparisons",
+        "Chaining multiple FRotator additions which can accumulate gimbal lock — convert to FQuat, compose, then convert back",
+        "Forgetting that FRotator stores degrees while FMath trig functions expect radians"
+      ],
+      "keyPoints": [
+        "FVector(X, Y, Z): position, direction, or velocity. FVector::ZeroVector, ForwardVector, UpVector.",
+        "FVector operations: +, -, *, Size(), SizeSquared(), Normalize(), GetSafeNormal(), Dot, Cross",
+        "FVector::Dist(A, B): distance between two points. DistSquared() for cheaper comparison.",
+        "FRotator(Pitch, Yaw, Roll): orientation in degrees. FRotator::ZeroRotator.",
+        "FRotator::MakeFromX(Direction): create rotation from a forward direction vector",
+        "FQuat: quaternion rotation. More stable than FRotator for complex rotations. FQuat::Slerp() for smooth rotation.",
+        "FTransform: combines Location (FVector) + Rotation (FQuat) + Scale (FVector).",
+        "GetActorTransform(), SetActorTransform(): full transform operations",
+        ".RotateVector(V): rotate a direction by the rotator/quat",
+        "FMath::FindLookAtRotation(From, To): rotation that points from one location to another"
+      ],
+      "codeExample": "// Direction to target\nFVector Direction = (TargetLocation - GetActorLocation()).GetSafeNormal();\nfloat Distance = FVector::Dist(GetActorLocation(), TargetLocation);\n\n// Look at target\nFRotator LookRot = FMath::FindLookAtRotation(GetActorLocation(), TargetLocation);\nSetActorRotation(LookRot);\n\n// Move forward\nFVector Forward = GetActorForwardVector();\nSetActorLocation(GetActorLocation() + Forward * Speed * DeltaTime);\n\n// Dot product (facing check: > 0 means in front)\nfloat Dot = FVector::DotProduct(GetActorForwardVector(), DirectionToTarget);\nbool bInFront = Dot > 0.f;\n\n// Cross product (perpendicular direction)\nFVector Right = FVector::CrossProduct(FVector::UpVector, Forward);",
+      "tags": ["fvector", "frotator", "ftransform", "fquat", "distance", "direction", "dot product", "cross product", "math"]
+    },
+    {
+      "id": "ref_util_005",
+      "title": "Cast<T>, IsValid, IsA — Type Safety Functions",
+      "description": "The most commonly used type-checking and safety functions in UE5 C++. Use these constantly to avoid crashes from invalid pointers and wrong types.",
+      "whatItIs": "Cast<T>, IsValid, and IsA are the core type-safety primitives in UE5 C++. They leverage UE5's UObject reflection system to perform safe runtime type checks and conversions, replacing raw C++ static_cast/dynamic_cast with engine-aware alternatives that understand the UClass hierarchy.",
+      "whenToUse": [
+        "Cast<T>: whenever you receive a base-class pointer (like AActor*) and need to access a subclass's members",
+        "IsValid: before dereferencing any UObject pointer, especially ones received from delegates, timers, or async callbacks",
+        "IsA<T>: when you only need to check an object's type without accessing subclass-specific members",
+        "CastChecked<T>: in places where the cast must succeed and failure indicates a logic bug (crashes in debug to catch errors early)",
+        "check/ensure: for asserting invariants and preconditions in your code"
+      ],
+      "whenNotToUse": [
+        "Cast<T> on non-UObject types — it only works with UObject-derived classes; use static_cast or dynamic_cast for plain C++ classes",
+        "CastChecked<T> on user-provided or external input that could legitimately be the wrong type — it will crash in debug builds",
+        "check() in code paths that can legitimately fail at runtime — use if-statements and error handling instead",
+        "IsValid in tight inner loops on pointers you already know are valid — the PendingKill check adds minor overhead"
+      ],
+      "relatedClasses": [
+        "UObject",
+        "UClass",
+        "TObjectPtr",
+        "TWeakObjectPtr",
+        "TSoftObjectPtr",
+        "TSubclassOf",
+        "IInterface"
+      ],
+      "commonMistakes": [
+        "Using static_cast instead of Cast<T> for UObject types — static_cast skips the type check and will silently produce a bad pointer if the type is wrong",
+        "Checking if(Ptr) instead of IsValid(Ptr) for UObjects — a raw null check misses the PendingKill state, leading to access on destroyed objects",
+        "Not checking the return value of Cast<T> — always check for nullptr before using the result",
+        "Using CastChecked<T> in production code paths where failure is possible — this crashes the game instead of handling the error gracefully",
+        "Forgetting that ensure() only fires once per callsite — subsequent failures at the same line are silently ignored"
+      ],
+      "keyPoints": [
+        "Cast<T>(Object): safe downcast for UObject types. Returns nullptr if the cast fails. Always use over static_cast.",
+        "IsValid(Object): checks non-null AND not pending destruction. Use before any UObject pointer access.",
+        "IsA<T>(): checks if an object is of type T (or a subclass) without casting",
+        "CastChecked<T>(Object): Cast that asserts on failure — crashes in debug builds. Use when the cast MUST succeed.",
+        "ExactCast<T>(): cast that only succeeds if the object is exactly type T, not a subclass",
+        "ensure(Expression): like check() but only fires in debug builds and doesn't crash in shipping",
+        "check(Expression): assertion that crashes if false. Use for logic that must never fail.",
+        "checkf(Expression, Format, ...): check with a formatted error message",
+        "TObjectPtr<T>: UE5 replacement for raw UObject pointers in UPROPERTY. Adds access tracking.",
+        "::IsValid() vs if(Ptr): IsValid also checks PendingKill. Always prefer IsValid for UObjects."
+      ],
+      "codeExample": "// Safe casting pattern\nvoid AMyActor::OnOverlap(AActor* OtherActor) {\n    // Check validity first\n    if (!IsValid(OtherActor)) return;\n    \n    // Try to cast\n    if (AMyCharacter* Character = Cast<AMyCharacter>(OtherActor)) {\n        Character->CollectPickup(this);\n    }\n    \n    // Check without casting\n    if (OtherActor->IsA<AProjectile>()) {\n        Destroy();\n    }\n}\n\n// Interface check\nif (OtherActor->GetClass()->ImplementsInterface(UInteractable::StaticClass())) {\n    IInteractable::Execute_Interact(OtherActor, this);\n}\n\n// Assertions (debug only)\ncheck(MyComponent != nullptr);\nensure(Health >= 0.f);",
+      "tags": ["cast", "isvalid", "isa", "type safety", "assertion", "check", "ensure", "castchecked"]
+    },
+    {
+      "id": "ref_util_006",
+      "title": "UKismetMathLibrary — Blueprint Math Functions",
+      "description": "UKismetMathLibrary exposes math functions to Blueprints but is also usable from C++. Contains vector math, rotations, random functions, and convenience math.",
+      "whatItIs": "UKismetMathLibrary is a static Blueprint function library that mirrors and extends FMath operations for Blueprint accessibility. It provides degree-based trigonometry, vector/rotator convenience functions, range mapping, and random generation utilities that are callable from both Blueprints and C++.",
+      "whenToUse": [
+        "In Blueprints for any math operation — this is the primary math library exposed to the Blueprint graph",
+        "When you need degree-based trig functions (DegSin, DegCos, DegAtan2) without manual conversion",
+        "For FindLookAtRotation and GetDirectionUnitVector which are cleaner than manual vector subtraction and normalization",
+        "When remapping values between ranges with MapRangeClamped — commonly used for UI progress bars and gameplay scaling",
+        "For generating random points or directions for scatter, spread, or spawn patterns"
+      ],
+      "whenNotToUse": [
+        "In performance-critical C++ code where FMath equivalents exist — FMath avoids the UFunction dispatch overhead",
+        "When you need deterministic random results in multiplayer — use FRandomStream with a synchronized seed instead",
+        "For complex matrix math or transform composition — use FMatrix or FTransform directly",
+        "When the same operation is already available as an FVector/FRotator member function — calling the member directly is cleaner in C++"
+      ],
+      "relatedClasses": [
+        "FMath",
+        "FVector",
+        "FRotator",
+        "FTransform",
+        "UKismetSystemLibrary",
+        "FRandomStream",
+        "UKismetArrayLibrary"
+      ],
+      "commonMistakes": [
+        "Using UKismetMathLibrary in hot C++ loops instead of FMath — the Kismet wrapper has overhead from UFunction infrastructure",
+        "Confusing MapRangeClamped (clamps output) with MapRangeUnclamped (allows extrapolation) and getting unexpected values",
+        "Using RandomUnitVector for 2D gameplay and getting unexpected Z-axis variation — project onto a plane or use FMath::RandRange for angle instead",
+        "Calling FindLookAtRotation with identical Start and Target points, producing an undefined rotation",
+        "Forgetting that NormalizeToRange returns 0-1 only if the input is within Min-Max — values outside the range extrapolate"
+      ],
+      "keyPoints": [
+        "FindLookAtRotation(Start, Target): rotation from one point facing another",
+        "GetDirectionUnitVector(From, To): normalized direction between two points",
+        "ProjectVectorOnToVector(): project one vector onto another",
+        "RandomUnitVector(): random direction (great for spread/scatter patterns)",
+        "RandomPointInBoundingBox(): random point inside a box",
+        "MakeRotFromX/Y/Z(): make rotation from a single axis direction",
+        "NormalizeToRange(Value, Min, Max): remap to 0-1",
+        "MapRangeClamped(Value, InMin, InMax, OutMin, OutMax): remap between ranges",
+        "InverseLerp(A, B, Value): find alpha that would produce Value from Lerp(A, B, Alpha)",
+        "DegSin, DegCos, DegAtan2: trig functions in degrees (not radians)"
+      ],
+      "codeExample": "// Find rotation to face target\nFRotator LookAt = UKismetMathLibrary::FindLookAtRotation(\n    GetActorLocation(), TargetActor->GetActorLocation()\n);\n\n// Get direction\nFVector Dir = UKismetMathLibrary::GetDirectionUnitVector(\n    GetActorLocation(), TargetActor->GetActorLocation()\n);\n\n// Random scatter\nfor (int i = 0; i < 5; i++) {\n    FVector RandomDir = UKismetMathLibrary::RandomUnitVector();\n    SpawnProjectile(RandomDir * 1000.f);\n}\n\n// Map range: convert 0-100 health to 0-1 for UI\nfloat Percent = UKismetMathLibrary::MapRangeClamped(Health, 0.f, MaxHealth, 0.f, 1.f);",
+      "tags": ["kismet math", "math library", "look at", "direction", "random", "map range", "blueprint math"]
+    }
+  ]
+}

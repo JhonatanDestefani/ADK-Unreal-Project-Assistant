@@ -1,0 +1,231 @@
+{
+  "category": "logging-debugging",
+  "displayName": "Logging & Debugging",
+  "description": "UE5 debugging tools: UE_LOG, log categories, PrintString, Visual Logger, Gameplay Debugger, stat commands, and console commands",
+  "entries": [
+    {
+      "id": "ref_debug_001",
+      "title": "UE_LOG — C++ Logging System",
+      "description": "UE_LOG is the primary logging macro in UE5 C++. It writes formatted messages to the Output Log with severity levels and category filtering. Essential for debugging any C++ code.",
+      "whatItIs": "UE_LOG is a variadic macro that writes formatted text to UE5's Output Log panel and log files. It takes a log category, verbosity level (Fatal/Error/Warning/Display/Verbose), and printf-style format string. Custom log categories let you filter output by system.",
+      "whenToUse": [
+        "Debugging any C++ code — print variable values, execution flow, and state to the Output Log",
+        "Error reporting — log errors and warnings that persist in log files for post-mortem analysis",
+        "Tracking game flow — log when key events happen (player spawned, level loaded, save completed)",
+        "Performance investigation — log timestamps to find where time is being spent",
+        "Shipping builds — UE_LOG persists in log files even in packaged builds (at appropriate verbosity)"
+      ],
+      "whenNotToUse": [
+        "For player-facing messages — use UMG widgets or HUD text instead",
+        "For quick visual debugging on screen — use GEngine->AddOnScreenDebugMessage or PrintString (faster to read in real-time)",
+        "When you need structured data logging for analytics — use a proper telemetry system",
+        "In extremely hot code paths (inner loops running millions of times) — logging has I/O overhead"
+      ],
+      "relatedClasses": [
+        "FOutputDeviceRedirector",
+        "FMsg",
+        "FOutputDevice",
+        "UKismetSystemLibrary",
+        "UEngine"
+      ],
+      "commonMistakes": [
+        "Using UE_LOG(LogTemp, ...) for everything instead of creating custom categories — makes filtering impossible in large projects",
+        "Forgetting the * before FString in format: UE_LOG(LogTemp, Log, TEXT(\"%s\"), *MyString) — missing * crashes",
+        "Using %s with FName or FText directly — use *MyName.ToString() or *MyText.ToString()",
+        "Logging in Tick without a condition, flooding the Output Log with thousands of lines per second",
+        "Not understanding verbosity: Log/Display always shows, Verbose/VeryVerbose are hidden by default — use Log for important info, Verbose for noise",
+        "Using UE_LOG in constructors — output may not be visible in the editor log at that point"
+      ],
+      "keyPoints": [
+        "UE_LOG(CategoryName, Verbosity, TEXT(\"format\"), args...): the basic macro",
+        "Verbosity levels: Fatal (crashes), Error (red), Warning (yellow), Display (white), Log (white), Verbose (hidden), VeryVerbose (hidden)",
+        "LogTemp: built-in catch-all category. Use for quick debugging only.",
+        "Custom category: DECLARE_LOG_CATEGORY_EXTERN(LogMyGame, Log, All) in .h, DEFINE_LOG_CATEGORY(LogMyGame) in .cpp",
+        "Format specifiers: %s (TCHAR*/FString*), %d (int), %f (float), %i (int), %lld (int64)",
+        "GEngine->AddOnScreenDebugMessage(Key, Duration, Color, Message): on-screen text (faster to see than log)",
+        "Output Log panel in the editor: Window > Developer Tools > Output Log",
+        "Log files: Saved/Logs/ folder. Latest is the .log file, previous are numbered backups."
+      ],
+      "codeExample": "// === CUSTOM LOG CATEGORY ===\n// MyGame.h\nDECLARE_LOG_CATEGORY_EXTERN(LogMyGame, Log, All);\n\n// MyGame.cpp\nDEFINE_LOG_CATEGORY(LogMyGame);\n\n// === USAGE ===\n// Basic logging\nUE_LOG(LogMyGame, Display, TEXT(\"Player spawned at %s\"), *GetActorLocation().ToString());\n\n// Warning\nUE_LOG(LogMyGame, Warning, TEXT(\"Health is low: %f\"), Health);\n\n// Error\nUE_LOG(LogMyGame, Error, TEXT(\"Failed to load save file: %s\"), *SlotName);\n\n// With FString\nFString PlayerName = TEXT(\"Hero\");\nUE_LOG(LogMyGame, Log, TEXT(\"Player name: %s\"), *PlayerName);\n\n// With FName\nFName ItemID = TEXT(\"Sword_01\");\nUE_LOG(LogMyGame, Log, TEXT(\"Picked up: %s\"), *ItemID.ToString());\n\n// On-screen debug message (visible in viewport)\nif (GEngine) {\n    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,\n        FString::Printf(TEXT(\"Health: %f\"), Health));\n}\n\n// Conditional logging (only first time)\nUE_LOG(LogMyGame, Log, TEXT(\"This only logs once per session\"));\n\n// === FILTERING IN EDITOR ===\n// Output Log > type 'LogMyGame' in the filter to see only your category",
+      "tags": ["ue_log", "logging", "log", "debug", "output log", "category", "verbosity", "print"]
+    },
+    {
+      "id": "ref_debug_002",
+      "title": "On-Screen Debug & PrintString",
+      "description": "Quick visual debugging tools that display text on the game viewport. Faster to read than the Output Log during real-time gameplay testing.",
+      "whatItIs": "On-screen debug messages and PrintString are immediate visual feedback tools that render text directly in the game viewport. They are the fastest way to see variable values during Play-In-Editor without pausing to check the Output Log.",
+      "whenToUse": [
+        "Quick debugging during PIE — see variable values in real-time without checking the log",
+        "Visualizing state changes — display current health, state machine state, or AI behavior",
+        "Prototyping and testing — verify that code paths are executing correctly",
+        "When the Output Log scrolls too fast to read"
+      ],
+      "whenNotToUse": [
+        "Shipping/release builds — remove or wrap in #if !UE_BUILD_SHIPPING",
+        "Player-facing text — use UMG widgets for proper UI",
+        "Persistent logs that need to be reviewed later — use UE_LOG which writes to files",
+        "Performance-critical code — on-screen messages have rendering overhead"
+      ],
+      "relatedClasses": [
+        "UEngine",
+        "UKismetSystemLibrary",
+        "AHUD",
+        "UCanvas",
+        "GEngine"
+      ],
+      "commonMistakes": [
+        "Leaving PrintString/AddOnScreenDebugMessage in shipping builds — adds overhead and looks unprofessional",
+        "Using Key=-1 for AddOnScreenDebugMessage in Tick, creating a new message every frame that fills the screen — use a positive Key to overwrite the same slot",
+        "Not realizing that PrintString in Blueprint has both 'Print to Screen' and 'Print to Log' checkboxes — check both for debugging",
+        "Using on-screen messages for data that should be in a proper debug UI — if you need persistent stats, build a debug widget",
+        "Forgetting the GEngine null check — GEngine can be null in dedicated server or during shutdown"
+      ],
+      "keyPoints": [
+        "GEngine->AddOnScreenDebugMessage(Key, Duration, Color, Message): C++ on-screen text",
+        "Key=-1: adds a new message each call. Key=positive: overwrites the same slot (great for Tick).",
+        "UKismetSystemLibrary::PrintString(): Blueprint-accessible, prints to screen and/or log",
+        "Blueprint PrintString node: set Text Color, Duration, bPrintToScreen, bPrintToLog",
+        "FString::Printf(TEXT(\"format\"), args): create formatted strings for display",
+        "Wrap in #if !UE_BUILD_SHIPPING to auto-strip from release builds",
+        "DrawDebugString(): draws text at a 3D world location (good for per-actor labels)"
+      ],
+      "codeExample": "// === ON-SCREEN DEBUG MESSAGES ===\n\n// New message each call (stacks on screen)\nif (GEngine) {\n    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow,\n        TEXT(\"Damage applied!\"));\n}\n\n// Overwrite same slot (Key=1) — perfect for Tick\nvoid AMyActor::Tick(float DeltaTime) {\n    Super::Tick(DeltaTime);\n    if (GEngine) {\n        GEngine->AddOnScreenDebugMessage(1, 0.f, FColor::Cyan,\n            FString::Printf(TEXT(\"Speed: %.1f\"), GetVelocity().Size()));\n        GEngine->AddOnScreenDebugMessage(2, 0.f, FColor::Green,\n            FString::Printf(TEXT(\"Health: %.0f / %.0f\"), Health, MaxHealth));\n    }\n}\n\n// 3D world-space debug text\nDrawDebugString(GetWorld(), GetActorLocation() + FVector(0, 0, 100),\n    FString::Printf(TEXT(\"HP: %.0f\"), Health), nullptr, FColor::White, 0.f);\n\n// Strip from shipping builds\n#if !UE_BUILD_SHIPPING\n    if (GEngine) {\n        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT(\"Debug mode active\"));\n    }\n#endif",
+      "tags": ["print string", "on screen", "debug message", "gengine", "viewport", "debug text", "shipping"]
+    },
+    {
+      "id": "ref_debug_003",
+      "title": "Draw Debug Helpers — Visual Debugging",
+      "description": "Draw debug shapes (lines, spheres, boxes, arrows, capsules) in the 3D world to visualize traces, radii, directions, and spatial logic during development.",
+      "whatItIs": "The DrawDebug* family of functions renders temporary 3D shapes in the game viewport for visualizing spatial gameplay logic. They are indispensable for debugging traces, collision, AI perception radii, spawn points, and any system that involves positions and directions in 3D space.",
+      "whenToUse": [
+        "Visualizing line traces and sweep traces — see exactly where the ray goes and what it hits",
+        "Debugging AI perception cones, hearing radii, or patrol paths",
+        "Verifying spawn locations, socket positions, or attachment points",
+        "Visualizing collision shapes, trigger volumes, or damage radii",
+        "Checking direction vectors (forward, aim direction, velocity) with arrows"
+      ],
+      "whenNotToUse": [
+        "For permanent in-game visual lines — use spline meshes, decals, or procedural meshes",
+        "In shipping builds — wrap in #if ENABLE_DRAW_DEBUG or strip entirely",
+        "When you need hundreds of persistent debug shapes — the rendering overhead is significant",
+        "For UI or HUD information — use UMG widgets or on-screen messages"
+      ],
+      "relatedClasses": [
+        "DrawDebugHelpers",
+        "UKismetSystemLibrary",
+        "ULineBatchComponent",
+        "UWorld"
+      ],
+      "commonMistakes": [
+        "Calling DrawDebugLine in Tick with bPersistent=true, creating permanent lines every frame that tank performance",
+        "Using Duration=0 and wondering why shapes disappear immediately — set Duration to a positive value or use -1 for persistent",
+        "Forgetting to include DrawDebugHelpers.h — the functions won't be found",
+        "Drawing debug shapes in multiplayer on the server — they only render locally, not on clients",
+        "Not wrapping in ENABLE_DRAW_DEBUG, causing compile errors in shipping builds where debug drawing is stripped"
+      ],
+      "keyPoints": [
+        "DrawDebugLine(World, Start, End, Color, bPersistent, Duration, DepthPriority, Thickness)",
+        "DrawDebugSphere(World, Center, Radius, Segments, Color, bPersistent, Duration)",
+        "DrawDebugBox(World, Center, Extent, Color, bPersistent, Duration)",
+        "DrawDebugCapsule(World, Center, HalfHeight, Radius, Rotation, Color)",
+        "DrawDebugArrow(World, Start, End, ArrowSize, Color): great for showing directions",
+        "DrawDebugPoint(World, Location, Size, Color): mark specific points",
+        "DrawDebugCoordinateSystem(World, Location, Rotation, Scale): show XYZ axes at a point",
+        "All functions take bPersistent (stays until cleared) and Duration (seconds)",
+        "#include \"DrawDebugHelpers.h\" required in your .cpp file"
+      ],
+      "codeExample": "// === VISUAL DEBUGGING EXAMPLES ===\n#include \"DrawDebugHelpers.h\"\n\n// Visualize a line trace\nFHitResult Hit;\nFVector Start = GetActorLocation();\nFVector End = Start + GetActorForwardVector() * 1000.f;\n\nbool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility);\n\n// Draw the trace\nDrawDebugLine(GetWorld(), Start, bHit ? Hit.ImpactPoint : End,\n    bHit ? FColor::Red : FColor::Green, false, 2.f, 0, 1.f);\n\n// Draw hit point\nif (bHit) {\n    DrawDebugSphere(GetWorld(), Hit.ImpactPoint, 10.f, 12, FColor::Red, false, 2.f);\n    DrawDebugArrow(GetWorld(), Hit.ImpactPoint,\n        Hit.ImpactPoint + Hit.ImpactNormal * 50.f, 10.f, FColor::Blue, false, 2.f);\n}\n\n// Visualize damage radius\nDrawDebugSphere(GetWorld(), ExplosionCenter, DamageRadius, 24,\n    FColor::Orange, false, 3.f);\n\n// Visualize AI perception cone\nDrawDebugCone(GetWorld(), EyeLocation, ForwardVector, SightRange,\n    FMath::DegreesToRadians(PeripheralAngle), FMath::DegreesToRadians(PeripheralAngle),\n    12, FColor::Yellow, false, 0.f);\n\n// Visualize forward direction as arrow\nDrawDebugArrow(GetWorld(), GetActorLocation(),\n    GetActorLocation() + GetActorForwardVector() * 200.f,\n    20.f, FColor::Red, false, 0.f, 0, 2.f);",
+      "tags": ["draw debug", "debug line", "debug sphere", "debug box", "debug arrow", "visual debug", "helpers"]
+    },
+    {
+      "id": "ref_debug_004",
+      "title": "Gameplay Debugger & Visual Logger",
+      "description": "UE5's built-in advanced debugging tools for AI, gameplay, and system visualization. The Gameplay Debugger shows real-time overlays, and the Visual Logger records data for timeline scrubbing.",
+      "whatItIs": "The Gameplay Debugger is a real-time overlay system activated with the apostrophe (') key during PIE that displays categorized debug information (AI, EQS, Perception, NavMesh). The Visual Logger records structured debug data over time that can be reviewed frame-by-frame in the Visual Logger window.",
+      "whenToUse": [
+        "Debugging AI behavior — see Behavior Tree state, Blackboard values, Perception, and EQS results in real-time",
+        "Debugging navigation — visualize NavMesh, path following, and pathfinding queries",
+        "When you need to scrub through time to find when something went wrong (Visual Logger)",
+        "When you need structured, categorized debug data beyond simple print statements"
+      ],
+      "whenNotToUse": [
+        "For simple variable inspection — PrintString or UE_LOG is faster to set up",
+        "In shipping builds — both tools are editor/development only",
+        "For debugging UI layout — use the UMG Widget Reflector instead",
+        "When you just need to check a value once — use a breakpoint in your IDE"
+      ],
+      "relatedClasses": [
+        "AGameplayDebuggingComponent",
+        "UGameplayDebuggerCategoryReplicator",
+        "FVisualLogger",
+        "UVisualLoggerKismetLibrary",
+        "AAIController",
+        "UBehaviorTreeComponent"
+      ],
+      "commonMistakes": [
+        "Not knowing the apostrophe (') key activates the Gameplay Debugger — many developers don't know this tool exists",
+        "Forgetting to select a specific actor to debug — click on an AI actor while the Gameplay Debugger is active to see its details",
+        "Not enabling the Gameplay Debugger categories you need — press numpad keys (0-9) to toggle categories",
+        "Overwhelming the Visual Logger with too much data logged every frame — log only when state changes",
+        "Forgetting to include VisualLogger/VisualLogger.h and using the UE_VLOG macros incorrectly"
+      ],
+      "keyPoints": [
+        "Gameplay Debugger: press ' (apostrophe) during PIE to toggle. Click on actors to inspect.",
+        "Categories: AI (0), BehaviorTree (1), EQS (2), Perception (3), NavMesh (4) — toggle with numpad",
+        "Shows: current BT node, Blackboard values, perception sources, NavMesh around actor",
+        "Visual Logger: Window > Developer Tools > Visual Logger. Must enable recording first.",
+        "UE_VLOG(Owner, CategoryName, Verbosity, Format, ...): log to Visual Logger from C++",
+        "UE_VLOG_LOCATION, UE_VLOG_SEGMENT, UE_VLOG_BOX: log 3D shapes to Visual Logger timeline",
+        "Visual Logger lets you scrub time backward — see what the AI saw 5 seconds ago",
+        "Custom Gameplay Debugger categories: extend UGameplayDebuggerCategory for your own systems"
+      ],
+      "codeExample": "// === VISUAL LOGGER ===\n#include \"VisualLogger/VisualLogger.h\"\n\nvoid AAIEnemy::UpdateBehavior() {\n    // Log text to Visual Logger\n    UE_VLOG(this, LogAI, Log, TEXT(\"Current state: %s, Target: %s\"),\n        *StateToString(CurrentState),\n        *GetNameSafe(CurrentTarget));\n    \n    // Log a location marker\n    UE_VLOG_LOCATION(this, LogAI, Log, GetActorLocation(), 50.f,\n        FColor::Green, TEXT(\"AI Position\"));\n    \n    // Log a segment (line)\n    if (CurrentTarget) {\n        UE_VLOG_SEGMENT(this, LogAI, Log, GetActorLocation(),\n            CurrentTarget->GetActorLocation(), FColor::Red, TEXT(\"To Target\"));\n    }\n}\n\n// === GAMEPLAY DEBUGGER ===\n// No code needed for built-in categories!\n// Just press ' during PIE and click on an AI actor.\n// \n// For custom categories:\n// 1. Subclass UGameplayDebuggerCategory\n// 2. Override CollectData() and DrawData()\n// 3. Register in your module's StartupModule():\n//    IGameplayDebugger::Get().RegisterCategory(\n//        \"MyCategory\",\n//        IGameplayDebugger::FOnGetCategory::CreateStatic(\n//            &FMyDebugCategory::MakeInstance),\n//        EGameplayDebuggerCategoryState::EnabledInGameAndSimulate, 5);",
+      "tags": ["gameplay debugger", "visual logger", "ai debug", "behavior tree debug", "apostrophe", "vlog", "navmesh debug"]
+    },
+    {
+      "id": "ref_debug_005",
+      "title": "Console Commands & Stat Commands",
+      "description": "UE5's in-game console provides stat commands for real-time performance monitoring and debug commands for toggling engine features. Essential for optimization and debugging.",
+      "whatItIs": "The in-game console (activated with ~ or ` key) accepts text commands that control engine behavior, display performance statistics, and toggle debug visualizations. Stat commands show real-time overlays for FPS, draw calls, memory, and system-specific metrics.",
+      "whenToUse": [
+        "Performance profiling — see FPS, frame time, draw calls, and memory usage in real-time",
+        "Debugging rendering — toggle wireframe, collision, lights, fog, etc.",
+        "Debugging networking — see bandwidth, replication, and actor relevancy",
+        "Quick testing — change CVars (console variables) to tweak engine settings without restarting"
+      ],
+      "whenNotToUse": [
+        "For player-facing settings — use a proper settings menu UI",
+        "For persistent configuration changes — use DefaultEngine.ini or Project Settings",
+        "In shipping builds for cheats — console is disabled by default in shipping"
+      ],
+      "relatedClasses": [
+        "UConsole",
+        "IConsoleManager",
+        "FAutoConsoleVariableRef",
+        "UCheatManager",
+        "UEngine"
+      ],
+      "commonMistakes": [
+        "Not knowing that ~ (tilde/backtick) opens the console — many beginners never discover it",
+        "Using stat commands in packaged builds where the console is disabled — enable it explicitly or use in-editor only",
+        "Leaving debug commands (god, fly, ghost) enabled in builds that ship to testers",
+        "Not using 'stat unit' as the first step in performance investigation — it shows the key bottleneck (Game, Draw, GPU)",
+        "Confusing stat fps (simple FPS) with stat unit (detailed frame breakdown) — stat unit is far more useful"
+      ],
+      "keyPoints": [
+        "Open console: press ~ (tilde) or ` (backtick) during PIE or packaged build (if enabled)",
+        "stat fps: show framerate. stat unit: show Game/Draw/GPU frame times (more useful!).",
+        "stat game: gameplay thread stats. stat scenerendering: render thread stats.",
+        "stat memory: memory usage breakdown. stat streaming: texture/mesh streaming stats.",
+        "stat startfile / stat stopfile: record a profiling session to disk for Unreal Insights.",
+        "show collision: visualize collision shapes. show navigation: visualize NavMesh.",
+        "viewmode wireframe: render in wireframe. viewmode lit: back to normal.",
+        "slomo 0.5: slow motion. slomo 1: normal speed.",
+        "Custom console commands: UCheatManager subclass or UFUNCTION(Exec) on PlayerController.",
+        "CVars: r.ScreenPercentage=50 (render at half res), sg.PostProcessQuality=0 (disable post-process)"
+      ],
+      "codeExample": "// === COMMON CONSOLE COMMANDS ===\n// Performance:\n//   stat fps          — show FPS counter\n//   stat unit         — show Game/Draw/GPU frame times (MOST USEFUL)\n//   stat unitgraph    — graph of frame times over time\n//   stat scenerendering — draw calls, triangles, render passes\n//   stat rhi          — GPU stats\n//   stat memory       — memory breakdown\n//   stat particles    — particle system stats\n//   stat startfile / stat stopfile — capture profiling data\n//\n// Visualization:\n//   show collision    — render collision shapes\n//   show navigation   — render NavMesh\n//   show bounds       — render actor bounding boxes\n//   viewmode wireframe / lit / unlit / shadercomplexity\n//\n// Gameplay:\n//   slomo 0.25        — quarter speed (slow-mo)\n//   pause             — pause the game\n//   god               — invincibility\n//   fly / walk / ghost — movement modes\n//\n// === CUSTOM CONSOLE COMMAND (C++) ===\n// On your PlayerController:\nUFUNCTION(Exec)\nvoid SetHealth(float NewHealth) {\n    if (AMyCharacter* Char = Cast<AMyCharacter>(GetPawn())) {\n        Char->Health = NewHealth;\n        UE_LOG(LogMyGame, Log, TEXT(\"Health set to %f\"), NewHealth);\n    }\n}\n// Now type in console: SetHealth 999",
+      "tags": ["console", "stat", "fps", "performance", "debug", "console command", "cvar", "wireframe", "cheat"]
+    }
+  ]
+}

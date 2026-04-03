@@ -1,0 +1,225 @@
+{
+  "category": "blueprints",
+  "displayName": "Blueprints & Visual Scripting",
+  "description": "UE5 Blueprint system: event graphs, functions, macros, interfaces, communication patterns, and C++ integration",
+  "entries": [
+    {
+      "id": "ref_bp_001",
+      "title": "Blueprint Architecture",
+      "description": "Blueprints are UE5's visual scripting system. They compile to bytecode executed by the Blueprint VM. Blueprints can extend C++ classes, implement interfaces, and communicate with other Blueprints and C++.",
+      "whatItIs": "The Blueprint system is UE5's node-based visual scripting framework that allows designers and developers to create gameplay logic without writing C++ code. Blueprints compile to VM bytecode and can extend any C++ class marked as Blueprintable.",
+      "whenToUse": [
+        "Prototyping gameplay mechanics quickly before committing to C++",
+        "Allowing designers to tweak and iterate on game logic without programmer involvement",
+        "Creating one-off level-specific scripting or cinematic sequences",
+        "Building UI logic and simple event-driven interactions",
+        "Extending C++ base classes with designer-tunable behavior"
+      ],
+      "whenNotToUse": [
+        "Performance-critical systems that tick every frame on many actors (use C++ instead)",
+        "Complex math-heavy algorithms or tight inner loops",
+        "Core engine-level systems that need maximum performance",
+        "When the Blueprint graph becomes so large it is unreadable — refactor to C++ or split into functions"
+      ],
+      "relatedClasses": [
+        "UBlueprint",
+        "UBlueprintGeneratedClass",
+        "UEdGraph",
+        "UBlueprintFunctionLibrary",
+        "UActorComponent",
+        "AActor"
+      ],
+      "commonMistakes": [
+        "Putting heavy per-tick logic in Blueprints instead of C++ — causes significant performance overhead",
+        "Creating monolithic Blueprint graphs with hundreds of nodes instead of splitting into functions",
+        "Using Level Blueprints for reusable logic — Level Blueprints cannot be reused across levels",
+        "Not organizing Blueprints into folders and using naming conventions (BP_ prefix)",
+        "Forgetting that Blueprint VM runs ~10x slower than C++ and not profiling Blueprint-heavy systems"
+      ],
+      "keyPoints": [
+        "Blueprint Classes: extend a C++ parent class. Can add components, variables, functions, and event graphs.",
+        "Blueprint Interfaces: define function signatures without implementation. Classes implementing the interface provide the logic.",
+        "Blueprint Function Library: static functions accessible from any Blueprint.",
+        "Blueprint Macros: inline node graphs (expanded at compile time, like C++ macros). Can have multiple exec outputs.",
+        "Level Blueprint: one per level. Handles level-specific scripting. Use sparingly — hard to reuse.",
+        "Blueprint VMs runs ~10x slower than C++. Fine for events, too slow for tight loops."
+      ],
+      "tags": ["blueprint", "visual scripting", "architecture", "class", "interface", "macro"]
+    },
+    {
+      "id": "ref_bp_002",
+      "title": "Blueprint ↔ C++ Communication",
+      "description": "Effective UE5 development uses both C++ and Blueprints. C++ provides performance and engine access; Blueprints provide rapid iteration and designer-friendly logic.",
+      "whatItIs": "A set of UFUNCTION and UPROPERTY specifiers that expose C++ code to the Blueprint editor, enabling two-way communication between C++ classes and Blueprint graphs. This is the primary mechanism for integrating compiled C++ logic with visual scripting.",
+      "whenToUse": [
+        "Building a C++ gameplay framework that designers extend and configure via Blueprints",
+        "Exposing core systems (damage, inventory, AI) to Blueprint for high-level game logic",
+        "Creating BlueprintNativeEvents when you want a C++ default with optional Blueprint override",
+        "Providing BlueprintCallable utility functions that designers use frequently",
+        "Sharing data between C++ systems and Blueprint UI or gameplay logic"
+      ],
+      "whenNotToUse": [
+        "Internal C++ helper functions that designers should never touch — keep them unexposed",
+        "Extremely low-level engine internals that would confuse Blueprint users",
+        "When the function signature uses types not supported by Blueprint reflection (raw pointers to non-UObject types)",
+        "Temporary debug functions that should not appear in production Blueprint menus"
+      ],
+      "relatedClasses": [
+        "UFunction",
+        "UProperty",
+        "UBlueprintFunctionLibrary",
+        "UObject",
+        "AActor",
+        "UActorComponent"
+      ],
+      "commonMistakes": [
+        "Using BlueprintImplementableEvent when you also need a C++ fallback — use BlueprintNativeEvent instead",
+        "Forgetting _Implementation suffix on the C++ body of BlueprintNativeEvent functions",
+        "Marking properties EditAnywhere when EditDefaultsOnly is more appropriate, allowing unintended per-instance edits",
+        "Not assigning a Category to UFUNCTION/UPROPERTY, making them hard to find in Blueprint menus",
+        "Exposing too many low-level functions to Blueprint, cluttering the designer's workspace"
+      ],
+      "keyPoints": [
+        "UFUNCTION(BlueprintCallable): C++ function callable from Blueprint",
+        "UFUNCTION(BlueprintPure): C++ function with no side effects, no exec pin in BP",
+        "UFUNCTION(BlueprintImplementableEvent): declared in C++, implemented ONLY in Blueprint",
+        "UFUNCTION(BlueprintNativeEvent): declared and optionally implemented in C++, overridable in Blueprint. C++ body goes in FuncName_Implementation()",
+        "UPROPERTY(BlueprintReadWrite): C++ variable readable and writable in Blueprint",
+        "UPROPERTY(BlueprintReadOnly): C++ variable readable but not writable in Blueprint",
+        "UPROPERTY(EditAnywhere): editable in both Blueprint defaults AND instances in the level",
+        "UPROPERTY(EditDefaultsOnly): editable in Blueprint defaults only, not per-instance"
+      ],
+      "codeExample": "// C++ class designed for Blueprint extension\nUCLASS(Blueprintable)\nclass AMyActor : public AActor {\n    GENERATED_BODY()\npublic:\n    // Blueprint can call this\n    UFUNCTION(BlueprintCallable, Category=\"Combat\")\n    void DealDamage(float Amount);\n    \n    // Blueprint must implement this\n    UFUNCTION(BlueprintImplementableEvent, Category=\"Combat\")\n    void OnDamageTaken(float Amount);\n    \n    // C++ default + Blueprint can override\n    UFUNCTION(BlueprintNativeEvent, Category=\"Combat\")\n    float CalculateArmor();\n    virtual float CalculateArmor_Implementation();\n    \n    UPROPERTY(EditAnywhere, BlueprintReadWrite)\n    float MaxHealth = 100.f;\n};",
+      "tags": ["blueprint callable", "blueprint implementable", "native event", "uproperty", "ufunction", "cpp"]
+    },
+    {
+      "id": "ref_bp_003",
+      "title": "Event Dispatchers (Delegates in Blueprint)",
+      "description": "Event Dispatchers are Blueprint's version of multicast delegates. They allow one Blueprint to broadcast an event that other Blueprints can listen to.",
+      "whatItIs": "Event Dispatchers are the Blueprint equivalent of C++ dynamic multicast delegates. They implement the observer pattern, allowing an actor to broadcast named events that any number of other actors can subscribe to and respond to, enabling loose coupling between systems.",
+      "whenToUse": [
+        "Notifying UI widgets when gameplay data changes (health changed, score updated)",
+        "Broadcasting game state events (round started, player died) to multiple listeners",
+        "Decoupling systems so the sender does not need a reference to every receiver",
+        "Reacting to component-level events (overlap, hit) in owning actors or external listeners",
+        "Enabling modular design where new systems can subscribe without modifying the broadcaster"
+      ],
+      "whenNotToUse": [
+        "One-to-one communication where a direct function call is simpler and clearer",
+        "Extremely high-frequency events (every frame) where delegate overhead matters",
+        "When the listener lifetime is not managed by UObject garbage collection (raw C++ objects)",
+        "Simple parent-to-child communication within the same Blueprint — use a direct function call instead"
+      ],
+      "relatedClasses": [
+        "FMulticastScriptDelegate",
+        "UObject",
+        "AActor",
+        "UActorComponent",
+        "UUserWidget"
+      ],
+      "commonMistakes": [
+        "Forgetting to unbind delegates when the listener is destroyed, though dynamic delegates handle this automatically for UObjects",
+        "Broadcasting events before any listeners have bound, causing silent no-ops",
+        "Creating too many event dispatchers when a single parameterized one would suffice",
+        "Not using BlueprintAssignable on the UPROPERTY when exposing C++ delegates to Blueprint",
+        "Binding the same function multiple times to the same dispatcher, causing duplicate calls"
+      ],
+      "keyPoints": [
+        "Declare in the Blueprint's variable list as 'Event Dispatcher'",
+        "Call: fires the event to all bound listeners",
+        "Bind: subscribes to the event dispatcher of another actor",
+        "Unbind / Unbind All: removes listeners",
+        "In C++: DECLARE_DYNAMIC_MULTICAST_DELEGATE with UPROPERTY(BlueprintAssignable)",
+        "Dynamic delegates auto-clean when the bound UObject is destroyed",
+        "Use for loose coupling: the broadcaster doesn't need to know who's listening"
+      ],
+      "codeExample": "// C++ event dispatcher exposed to Blueprint\nDECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealthChanged, float, NewHealth);\n\nUCLASS()\nclass AMyCharacter : public ACharacter {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(BlueprintAssignable, Category=\"Events\")\n    FOnHealthChanged OnHealthChanged;\n    \n    void TakeDamage(float Amount) {\n        Health -= Amount;\n        OnHealthChanged.Broadcast(Health);  // All listeners are notified\n    }\n};",
+      "tags": ["event dispatcher", "delegate", "multicast", "bind", "broadcast", "blueprint assignable"]
+    },
+    {
+      "id": "ref_bp_004",
+      "title": "Blueprint Compilation & Performance",
+      "description": "Blueprints compile to bytecode executed by a virtual machine. Understanding this helps you decide what belongs in Blueprint vs C++.",
+      "whatItIs": "The Blueprint compiler transforms visual node graphs into bytecode that runs on the Blueprint Virtual Machine. Each node becomes a reflected function call with overhead, making Blueprints approximately 10x slower than equivalent native C++ code.",
+      "whenToUse": [
+        "Event-driven logic that fires infrequently (on overlap, on interact, on button press)",
+        "UI logic and widget behavior that does not run in tight loops",
+        "Prototyping systems before committing to a C++ implementation",
+        "Designer-authored content such as ability configurations, dialogue triggers, and cutscene logic",
+        "One-time initialization and setup code in BeginPlay"
+      ],
+      "whenNotToUse": [
+        "Tick functions running on dozens or hundreds of actors simultaneously",
+        "Math-heavy computations like pathfinding, procedural generation, or physics calculations",
+        "Inner loops iterating over large arrays or performing per-element operations",
+        "Anything profiled as a Blueprint bottleneck — move to C++ immediately"
+      ],
+      "relatedClasses": [
+        "UBlueprintGeneratedClass",
+        "FKismetCompilerContext",
+        "UEdGraphSchema_K2",
+        "FBlueprintCompiledStatement",
+        "UK2Node"
+      ],
+      "commonMistakes": [
+        "Using Blueprint ForEachLoop for large collections instead of a single C++ function call",
+        "Neglecting to profile Blueprints — use stat game and Blueprint profiling tools",
+        "Assuming Blueprint nativization is still available in UE5 (it was deprecated)",
+        "Creating deeply nested Blueprint function calls that are hard to debug and slow to execute",
+        "Not splitting large monolithic Blueprints into smaller, reusable functions that compile faster"
+      ],
+      "keyPoints": [
+        "Blueprint VM overhead: each node is a function call with reflection. ~10x slower than equivalent C++.",
+        "Acceptable for: event handlers, UI logic, prototyping, one-time setup, designer-tunable parameters",
+        "Move to C++: Tick logic on many instances, inner loops, math-heavy operations, performance-critical systems",
+        "Nativization (deprecated in UE5): used to convert BP to C++. No longer supported — use C++ directly.",
+        "Blueprint compile time: complex BPs with many nodes take longer to compile. Split into smaller functions.",
+        "ForEachLoop in BP: spawns latent tasks. For performance-critical loops, use C++ or collapse to a single C++ function."
+      ],
+      "tags": ["compilation", "performance", "vm", "bytecode", "nativization", "optimization"]
+    },
+    {
+      "id": "ref_bp_005",
+      "title": "Blueprint Interfaces",
+      "description": "Blueprint Interfaces define a contract (set of functions) that any Blueprint can implement, regardless of class hierarchy. They enable polymorphic communication without inheritance.",
+      "whatItIs": "Blueprint Interfaces are UE5's version of abstract interfaces that define function signatures without implementations. Any Blueprint class can implement one or more interfaces, enabling polymorphic calls across unrelated class hierarchies without requiring a common base class.",
+      "whenToUse": [
+        "Defining shared behaviors (Interactable, Damageable, Saveable) across unrelated actor types",
+        "Calling functions on actors without needing to know or cast to their specific class",
+        "Building systems where new actor types can opt into behavior by implementing the interface",
+        "Replacing complex casting chains with clean interface message calls",
+        "Designing modular, pluggable systems where components announce capabilities via interfaces"
+      ],
+      "whenNotToUse": [
+        "When a shared base class already exists and direct inheritance is simpler",
+        "For one-off communication between two specific actors — a direct function call is clearer",
+        "When you need shared default implementations across all implementers (use a base class or mixin instead)",
+        "For data-only contracts — use a DataAsset or DataTable instead of an empty interface"
+      ],
+      "relatedClasses": [
+        "UInterface",
+        "UBlueprintInterface",
+        "IInterface",
+        "AActor",
+        "UActorComponent"
+      ],
+      "commonMistakes": [
+        "Forgetting to add the interface in Class Settings before trying to implement its functions",
+        "Using Cast instead of interface message calls — defeating the purpose of loose coupling",
+        "Not checking whether an actor implements the interface before calling (use DoesImplementInterface or message nodes)",
+        "Creating too many granular interfaces instead of grouping related functions into one interface",
+        "Confusing C++ UInterface (reflection) with IInterface (actual function declarations) — both are needed"
+      ],
+      "keyPoints": [
+        "Create: Content Browser > Blueprint > Blueprint Interface",
+        "Define functions (signatures only) in the interface. No implementation here.",
+        "Implement: open a Blueprint > Class Settings > Interfaces > Add. Then implement each function.",
+        "Call: use 'Message' node to call interface functions on any actor. Returns 'not implemented' if the actor doesn't implement it.",
+        "C++ interface: create a UInterface + IInterface pair. Use UFUNCTION(BlueprintCallable, BlueprintNativeEvent).",
+        "Use case: Interactable interface on doors, switches, items — player calls Interact() without knowing the class."
+      ],
+      "codeExample": "// C++ Blueprint Interface\nUINTERFACE(MinimalAPI, Blueprintable)\nclass UInteractable : public UInterface {\n    GENERATED_BODY()\n};\n\nclass IInteractable {\n    GENERATED_BODY()\npublic:\n    UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category=\"Interaction\")\n    void Interact(AActor* Caller);\n};\n\n// Actor implementing it\nclass ADoor : public AActor, public IInteractable {\n    virtual void Interact_Implementation(AActor* Caller) override {\n        ToggleDoor();\n    }\n};",
+      "tags": ["interface", "blueprint interface", "polymorphism", "message", "interact", "contract"]
+    }
+  ]
+}

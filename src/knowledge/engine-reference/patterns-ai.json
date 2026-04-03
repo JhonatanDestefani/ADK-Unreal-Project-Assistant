@@ -1,0 +1,69 @@
+{
+  "category": "patterns-ai",
+  "displayName": "Patterns: AI Enemy",
+  "description": "Architectural patterns for building AI enemies with behavior trees, controllers, and perception in UE5",
+  "entries": [
+    {
+      "id": "pat_ai_001",
+      "title": "Pattern: AI Enemy (Behavior Tree)",
+      "description": "How to structure an AI enemy using UE5's built-in AI framework: AIController for the brain, Behavior Tree for decisions, Blackboard for memory, and Perception for senses. Each piece has a clear role.",
+      "whatItIs": "The standard UE5 architecture for AI enemies. The enemy Character is just a body — the AIController is the brain that runs a Behavior Tree, reads sensory data from AI Perception, and stores knowledge in a Blackboard.",
+      "whenToUse": [
+        "Any game with AI enemies that patrol, chase, attack, and react to the player",
+        "When enemies need different behaviors based on state (idle, alert, combat, fleeing)",
+        "When designers need to tune AI behavior without touching C++ code"
+      ],
+      "whenNotToUse": [
+        "Very simple AI that just walks toward the player — a basic Tick with MoveToActor is enough",
+        "Swarm/horde AI with hundreds of identical enemies — Behavior Trees per-agent is too expensive, use a central manager",
+        "State Tree is the newer alternative for simpler state-based AI — consider it for straightforward decision logic"
+      ],
+      "keyPoints": [
+        "STEP 1 — Create the enemy Character class (AEnemyCharacter). It handles: mesh, capsule, movement component, health component, animations. It does NOT make decisions — it's the body.",
+        "STEP 2 — Create a custom AIController (AEnemyAIController). Assign it to the character via AIControllerClass in the constructor or editor. The controller is the brain.",
+        "STEP 3 — Create a Blackboard Data Asset. Define keys for what the AI needs to remember: TargetActor (Object), PatrolLocation (Vector), AlertLevel (Float), HasLineOfSight (Bool).",
+        "STEP 4 — Create a Behavior Tree Asset. Structure it with a Selector at the root: Combat branch (has target + in range), Chase branch (has target + not in range), Patrol branch (fallback).",
+        "STEP 5 — Add UAIPerceptionComponent to the AIController. Configure senses: Sight (main detection), Hearing (react to noise), Damage (react to being hit). Bind OnPerceptionUpdated.",
+        "STEP 6 — When perception detects/loses the player, update Blackboard keys. The Behavior Tree reacts to key changes through its decorators — no manual state machine needed.",
+        "STEP 7 — Use BT Tasks for actions (MoveTo, Attack, Wait), Decorators for conditions (HasBlackboardValue, IsAtLocation), and Services for continuous updates (update distance to target).",
+        "STEP 8 — For combat: create BT Tasks that call functions on the Character (PlayAttackMontage, UseAbility). The BT decides WHEN to attack, the Character handles HOW."
+      ],
+      "commonMistakes": [
+        "Putting AI decision logic in the Character class — the Character is the body, the AIController is the brain",
+        "Not using Blackboard — hardcoding state variables in C++ instead of using the data-driven Blackboard that the BT can query",
+        "Overcomplicating the first Behavior Tree — start with: See player? Chase. In range? Attack. Otherwise? Patrol. Add complexity later.",
+        "Forgetting to set AIControllerClass on the Character — without it, no controller spawns and the BT never runs",
+        "Running expensive logic (traces, pathfinding) every Tick instead of using BT Services on intervals",
+        "Not using AI Perception — manually checking distance/line of sight in Tick instead of letting the engine handle it",
+        "Making AI too dependent on the Player class — use the perception system and Blackboard so AI works with any target"
+      ],
+      "goodPractices": [
+        "Character = body (visuals, animations, health). AIController = brain (decisions, perception, BT). Keep them separate.",
+        "Blackboard is the AI's memory — everything the AI knows goes here. The BT reads from it, perception writes to it.",
+        "Start with a simple BT and add complexity through new branches. A working simple AI is better than a broken complex one.",
+        "Use EQS (Environment Query System) for spatial decisions: finding cover, choosing patrol points, selecting targets",
+        "Create reusable BT Tasks: BTTask_MoveToTarget, BTTask_PlayMontage, BTTask_Wait — share across enemy types",
+        "Different enemy types = different Behavior Trees on the same AIController base class. A ranged enemy and melee enemy share the controller but run different trees.",
+        "Use BT Services for periodic updates (every 0.5s) instead of Tick — cheaper and more predictable"
+      ],
+      "relatedClasses": [
+        "AAIController",
+        "UBehaviorTree",
+        "UBlackboardComponent",
+        "UBlackboardData",
+        "UAIPerceptionComponent",
+        "UAISenseConfig_Sight",
+        "UAISenseConfig_Hearing",
+        "UAISenseConfig_Damage",
+        "UBTTaskNode",
+        "UBTDecorator",
+        "UBTService",
+        "UEnvQuery",
+        "UNavigationSystemV1",
+        "ACharacter"
+      ],
+      "codeExample": "// EnemyAIController.h — the brain\nUCLASS()\nclass AEnemyAIController : public AAIController\n{\n    GENERATED_BODY()\npublic:\n    AEnemyAIController();\n\n    UPROPERTY(EditDefaultsOnly, Category = \"AI\")\n    UBehaviorTree* BehaviorTreeAsset;\n\n    UPROPERTY(VisibleAnywhere, BlueprintReadOnly)\n    UAIPerceptionComponent* AIPerception;\n\nprotected:\n    virtual void OnPossess(APawn* InPawn) override;\n\n    UFUNCTION()\n    void OnPerceptionUpdated(const TArray<AActor*>& UpdatedActors);\n};\n\n// EnemyAIController.cpp\nAEnemyAIController::AEnemyAIController()\n{\n    AIPerception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT(\"AIPerception\"));\n\n    // Configure sight\n    UAISenseConfig_Sight* SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT(\"SightConfig\"));\n    SightConfig->SightRadius = 1500.f;\n    SightConfig->LoseSightRadius = 2000.f;\n    SightConfig->PeripheralVisionAngleDegrees = 60.f;\n    AIPerception->ConfigureSense(*SightConfig);\n    AIPerception->SetDominantSense(UAISenseConfig_Sight::StaticClass());\n}\n\nvoid AEnemyAIController::OnPossess(APawn* InPawn)\n{\n    Super::OnPossess(InPawn);\n    AIPerception->OnPerceptionUpdated.AddDynamic(this, &AEnemyAIController::OnPerceptionUpdated);\n    if (BehaviorTreeAsset)\n    {\n        RunBehaviorTree(BehaviorTreeAsset);\n    }\n}\n\nvoid AEnemyAIController::OnPerceptionUpdated(const TArray<AActor*>& UpdatedActors)\n{\n    // Update Blackboard with what we see\n    AActor* BestTarget = nullptr;\n    for (AActor* Actor : UpdatedActors)\n    {\n        FActorPerceptionBlueprintInfo Info;\n        AIPerception->GetActorsPerception(Actor, Info);\n        for (const auto& Stimulus : Info.LastSensedStimuli)\n        {\n            if (Stimulus.WasSuccessfullySensed())\n            {\n                BestTarget = Actor;\n                break;\n            }\n        }\n    }\n    GetBlackboardComponent()->SetValueAsObject(\"TargetActor\", BestTarget);\n}\n\n// EnemyCharacter.h — the body (thin class)\nUCLASS()\nclass AEnemyCharacter : public ACharacter\n{\n    GENERATED_BODY()\npublic:\n    AEnemyCharacter();\n    // Health, mesh, animations — no AI logic here\n};\n\nAEnemyCharacter::AEnemyCharacter()\n{\n    AIControllerClass = AEnemyAIController::StaticClass();\n    AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;\n}",
+      "tags": ["pattern", "ai", "enemy", "behavior tree", "blackboard", "perception", "controller", "how to build", "structure", "patrol", "combat", "detect", "detect player", "sight", "chase", "attack"]
+    }
+  ]
+}

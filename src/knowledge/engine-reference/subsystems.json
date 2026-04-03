@@ -1,0 +1,54 @@
+{
+  "category": "subsystems",
+  "displayName": "Subsystems",
+  "description": "UE5 subsystem framework: Engine, Editor, GameInstance, World, and LocalPlayer subsystems for clean singleton-like architecture",
+  "entries": [
+    {
+      "id": "ref_sub_001",
+      "title": "Subsystems Overview",
+      "description": "Subsystems are auto-instanced UObjects tied to a specific engine lifetime (Engine, Editor, GameInstance, World, LocalPlayer). They provide a clean alternative to singletons for game-wide systems.",
+      "whatItIs": "Subsystems are UObject classes that the engine automatically creates and destroys based on a specific lifetime scope. You simply subclass one of the five subsystem base classes and the engine handles instantiation, lifecycle, and access — no manual registration or singleton boilerplate required.",
+      "whenToUse": [
+        "Building game-wide service systems (quest manager, inventory manager, audio manager) that need a well-defined lifetime",
+        "When you need a singleton-like pattern but want automatic lifecycle management tied to engine scopes",
+        "Per-world systems that should be created fresh for each level (spawn managers, weather systems)",
+        "Per-player systems in splitscreen or multiplayer (input mapping, per-player UI state)"
+      ],
+      "whenNotToUse": [
+        "When the system needs to be an Actor in the world with transforms, components, or replication — use an Actor or GameState instead",
+        "For tiny utility functions that do not need persistent state — a static function library (UBlueprintFunctionLibrary) is simpler",
+        "When you need multiple instances of the same system type — subsystems are one-per-scope by design",
+        "Editor-only tools in a packaged game — UEditorSubsystem does not exist in shipping builds"
+      ],
+      "relatedClasses": [
+        "UEngineSubsystem",
+        "UEditorSubsystem",
+        "UGameInstanceSubsystem",
+        "UWorldSubsystem",
+        "ULocalPlayerSubsystem",
+        "UTickableWorldSubsystem",
+        "UGameInstance",
+        "USubsystemBlueprintLibrary"
+      ],
+      "commonMistakes": [
+        "Using a UWorldSubsystem for data that must survive level transitions — it gets destroyed on level change. Use UGameInstanceSubsystem instead.",
+        "Forgetting that subsystems are UObjects, not Actors — they cannot replicate, tick (unless UTickableWorldSubsystem), or have components",
+        "Trying to access a World subsystem during GameInstance initialization — the World may not exist yet. Use ShouldCreateSubsystem() and check dependencies.",
+        "Assuming subsystems exist in all contexts — UEditorSubsystem is not available in packaged builds, and ULocalPlayerSubsystem requires a valid LocalPlayer",
+        "Not calling Super::Initialize() or Super::Deinitialize() when overriding lifecycle methods"
+      ],
+      "keyPoints": [
+        "UEngineSubsystem: lives as long as the engine (GEngine). Survives everything.",
+        "UEditorSubsystem: lives as long as the editor. Not available in packaged builds.",
+        "UGameInstanceSubsystem: lives as long as the GameInstance. Survives level loads.",
+        "UWorldSubsystem: lives as long as the UWorld. One per world, destroyed on level change.",
+        "ULocalPlayerSubsystem: one per local player. Useful for per-player systems in splitscreen.",
+        "Auto-created: just subclass — no manual registration. Engine finds and creates them.",
+        "Override Initialize() and Deinitialize() for setup/teardown.",
+        "Access: GameInstance->GetSubsystem<T>(), World->GetSubsystem<T>(), LocalPlayer->GetSubsystem<T>()"
+      ],
+      "codeExample": "// Game Instance Subsystem — survives level transitions\nUCLASS()\nclass UQuestSubsystem : public UGameInstanceSubsystem {\n    GENERATED_BODY()\npublic:\n    virtual void Initialize(FSubsystemCollectionBase& Collection) override {\n        // Load quest data\n    }\n    \n    virtual void Deinitialize() override {\n        // Cleanup\n    }\n    \n    UFUNCTION(BlueprintCallable)\n    void AcceptQuest(FName QuestID) { /* ... */ }\n    \n    UFUNCTION(BlueprintCallable)\n    bool IsQuestComplete(FName QuestID) const { /* ... */ }\n};\n\n// Accessing from anywhere\nUQuestSubsystem* Quests = GetGameInstance()->GetSubsystem<UQuestSubsystem>();\nQuests->AcceptQuest(TEXT(\"MainQuest_01\"));\n\n// World Subsystem — per-level system\nUCLASS()\nclass USpawnSubsystem : public UWorldSubsystem {\n    GENERATED_BODY()\npublic:\n    virtual void Initialize(FSubsystemCollectionBase& Collection) override {\n        // Set up spawn pools for this level\n    }\n    \n    void SpawnWave(int32 WaveNumber) { /* ... */ }\n};\n\n// Access\nUSpawnSubsystem* Spawner = GetWorld()->GetSubsystem<USpawnSubsystem>();",
+      "tags": ["subsystem", "game instance", "world", "local player", "engine", "singleton", "auto instance"]
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "category": "umg-slate",
+  "displayName": "UMG & Slate UI",
+  "description": "UE5 UI systems: UMG widgets, Slate framework, CommonUI, widget lifecycle, layout, and rendering",
+  "entries": [
+    {
+      "id": "ref_ui_001",
+      "title": "UMG Widget System Overview",
+      "description": "Unreal Motion Graphics (UMG) is the Blueprint-friendly UI framework built on top of Slate. Widgets are created in the UMG designer or in C++ and added to the viewport.",
+      "whatItIs": "UMG (Unreal Motion Graphics) is UE5's high-level UI framework that wraps the lower-level Slate system, providing a visual designer and Blueprint-friendly API for creating HUDs, menus, and interactive UI elements using UUserWidget as the base class.",
+      "whenToUse": [
+        "For all in-game UI: HUDs, menus, inventory screens, dialogue boxes, settings panels",
+        "When designers need to visually lay out UI without writing C++ code",
+        "When rapid UI prototyping in Blueprint is preferred over C++ Slate code",
+        "For any UI that needs to be displayed on the player's screen (2D viewport space)"
+      ],
+      "whenNotToUse": [
+        "For editor tool UI — use Slate directly for Unreal Editor extensions and custom tools",
+        "When you need maximum performance for extremely complex tool-like UI (Slate is lower overhead)",
+        "For simple debug text that can use GEngine->AddOnScreenDebugMessage instead"
+      ],
+      "relatedClasses": [
+        "UUserWidget",
+        "UWidgetBlueprintGeneratedClass",
+        "UCanvasPanel",
+        "UHorizontalBox",
+        "UVerticalBox",
+        "UWidgetTree",
+        "APlayerController"
+      ],
+      "commonMistakes": [
+        "Creating new widget instances every frame instead of creating once and toggling visibility",
+        "Not setting Anchors properly, causing UI to break at different screen resolutions",
+        "Using AddToViewport multiple times on the same widget without checking if it is already in the viewport",
+        "Forgetting to store a reference to the created widget, causing it to be garbage collected",
+        "Using Canvas Panel for everything instead of layout panels (Horizontal/Vertical Box) for responsive design"
+      ],
+      "keyPoints": [
+        "UUserWidget: base class for all UMG widgets. Create with CreateWidget<T>(PlayerController, WidgetClass)",
+        "AddToViewport(ZOrder): displays the widget on screen. ZOrder controls layering",
+        "RemoveFromParent(): removes the widget from the viewport",
+        "Visibility states: Visible, Collapsed (no space), Hidden (takes space), HitTestInvisible (visible but not clickable), SelfHitTestInvisible (self not clickable, children are)",
+        "Anchors: pin widgets relative to screen edges for resolution-independent layout",
+        "UMG Designer: visual editor for laying out widgets. Use Canvas Panel as root for absolute positioning, or layout panels (Horizontal/Vertical Box) for flow layout"
+      ],
+      "tags": ["umg", "widget", "userwidget", "viewport", "visibility", "anchor"]
+    },
+    {
+      "id": "ref_ui_002",
+      "title": "Widget Lifecycle",
+      "description": "UMG widgets have a specific lifecycle from construction to destruction. Understanding when functions are called is important for proper initialization and cleanup.",
+      "whatItIs": "The UMG Widget Lifecycle is the sequence of engine-called functions (NativeOnInitialized, NativeConstruct, NativeTick, NativeDestruct) that govern a widget's initialization, display, per-frame updates, and teardown, mirroring Actor lifecycle patterns for UI objects.",
+      "whenToUse": [
+        "Use NativeOnInitialized for one-time setup that does not depend on being in the viewport",
+        "Use NativeConstruct for initialization that requires the widget to be visible (starting animations, binding to data)",
+        "Use NativeDestruct for cleanup when the widget is removed (unbinding delegates, releasing resources)",
+        "Use NativeTick sparingly for per-frame UI updates that cannot be event-driven"
+      ],
+      "whenNotToUse": [
+        "Do not use the constructor for widget initialization — the widget tree is not ready yet",
+        "Avoid NativeTick for updates that can be done via delegate callbacks or event-driven patterns",
+        "Do not rely on NativeDestruct being called if the widget is still referenced and not explicitly removed"
+      ],
+      "relatedClasses": [
+        "UUserWidget",
+        "UWidgetTree",
+        "UPanelWidget",
+        "UWidgetAnimation",
+        "UWidgetBlueprintGeneratedClass"
+      ],
+      "commonMistakes": [
+        "Initializing widget references in the C++ constructor instead of NativeOnInitialized — child widgets are not available yet",
+        "Enabling Tick on widgets unnecessarily, wasting CPU on per-frame updates that could be event-driven",
+        "Forgetting that NativeConstruct is called every time AddToViewport is called, not just the first time",
+        "Not cleaning up delegate bindings in NativeDestruct, causing dangling references or crashes",
+        "Assuming NativeOnInitialized and NativeConstruct are called in Blueprint — use the Construct/Destruct events instead"
+      ],
+      "keyPoints": [
+        "NativeConstruct(): called when the widget is added to the viewport. Safe to initialize here.",
+        "NativeDestruct(): called when removed from viewport. Clean up bindings here.",
+        "NativeTick(FGeometry, DeltaTime): called every frame if ticking is enabled. Use sparingly.",
+        "NativeOnInitialized(): called once after the widget tree is constructed (before NativeConstruct).",
+        "For Blueprint: Construct, Destruct, Tick events correspond to the native versions.",
+        "Widgets are garbage-collected UObjects — don't delete them manually."
+      ],
+      "lifecycle": "CreateWidget → NativeOnInitialized → AddToViewport → NativeConstruct → NativeTick (every frame) → RemoveFromParent → NativeDestruct",
+      "tags": ["lifecycle", "construct", "destruct", "tick", "initialize"]
+    },
+    {
+      "id": "ref_ui_003",
+      "title": "Layout Panels",
+      "description": "UMG provides several layout panels that control how child widgets are arranged.",
+      "whatItIs": "Layout Panels are specialized UMG container widgets (Canvas Panel, Horizontal Box, Vertical Box, Overlay, Grid Panel, etc.) that automatically arrange their child widgets according to specific layout rules, similar to CSS layout systems in web development.",
+      "whenToUse": [
+        "Canvas Panel: when you need absolute pixel positioning with anchors for HUD elements",
+        "Horizontal/Vertical Box: when arranging items in a row or column with automatic sizing",
+        "Overlay: when stacking layers (background image + content + foreground effects)",
+        "Scroll Box: for short scrollable lists (under ~100 items)",
+        "Wrap Box: for tag-like layouts that flow and wrap to the next line",
+        "Size Box: when you need to constrain a widget to specific min/max dimensions"
+      ],
+      "whenNotToUse": [
+        "Do not use Canvas Panel for layouts that should adapt to content size — use box layouts instead",
+        "Do not use Scroll Box for large lists (100+ items) — use ListView for virtualized scrolling",
+        "Avoid deeply nested layout panels (Box in Box in Box) as it increases layout computation cost",
+        "Do not use Grid Panel when a simple Horizontal/Vertical Box combination would suffice"
+      ],
+      "relatedClasses": [
+        "UCanvasPanel",
+        "UHorizontalBox",
+        "UVerticalBox",
+        "UOverlay",
+        "UGridPanel",
+        "UWrapBox",
+        "UScrollBox",
+        "USizeBox",
+        "UScaleBox",
+        "UListView"
+      ],
+      "commonMistakes": [
+        "Using Canvas Panel as the only layout strategy, making UI non-responsive across screen resolutions",
+        "Using Scroll Box for large item lists instead of ListView, causing performance issues from instantiating hundreds of widgets",
+        "Forgetting to set Fill on child slots in Horizontal/Vertical Box, causing items to not distribute space properly",
+        "Nesting too many layout panels deep, creating expensive layout passes each frame",
+        "Not using Size Box to constrain widgets that could grow unbounded, breaking the overall layout"
+      ],
+      "keyPoints": [
+        "Canvas Panel: absolute positioning with anchors. Children are placed at specific coordinates. Most flexible, but hardest to make responsive.",
+        "Horizontal Box: children arranged left-to-right. Use Fill to distribute space.",
+        "Vertical Box: children arranged top-to-bottom. Use Fill to distribute space.",
+        "Overlay: children stacked on top of each other (like layers). Good for backgrounds + content.",
+        "Grid Panel: children arranged in a grid with configurable rows/columns.",
+        "Wrap Box: children flow and wrap to next line when they don't fit.",
+        "Scroll Box: children in a scrollable list. For few items. For many items use ListView instead.",
+        "Size Box: constrain a child to min/max width/height.",
+        "Scale Box: scale content to fit a container."
+      ],
+      "tags": ["layout", "canvas", "horizontal box", "vertical box", "overlay", "grid", "scroll box", "size box"]
+    },
+    {
+      "id": "ref_ui_004",
+      "title": "Data Binding & Updates",
+      "description": "Widgets need to display dynamic data. UMG offers property bindings and event-driven approaches.",
+      "whatItIs": "Data Binding in UMG refers to the mechanisms for connecting widget visual properties (text, images, progress bars) to game data, either through automatic per-frame polling via UMG Designer bindings, or through explicit event-driven setter calls that update widgets only when data actually changes.",
+      "whenToUse": [
+        "Use event-driven SetText()/SetPercent() calls when data changes are infrequent and well-defined",
+        "Use property bindings in the UMG Designer for rapid prototyping when performance is not critical",
+        "Use FText::Format() for any user-facing text that may need localization",
+        "Use delegate-based push updates for production UI that needs to be efficient"
+      ],
+      "whenNotToUse": [
+        "Do not use UMG property bindings in shipping games with many bound widgets — the per-frame polling cost adds up",
+        "Avoid polling in NativeTick for data that has clear change events you can bind to",
+        "Do not use FString for user-visible text — use FText for proper localization support",
+        "Avoid updating widget properties every frame when the underlying data has not changed"
+      ],
+      "relatedClasses": [
+        "UUserWidget",
+        "UTextBlock",
+        "UProgressBar",
+        "UImage",
+        "UButton",
+        "FText",
+        "FFormatNamedArguments"
+      ],
+      "commonMistakes": [
+        "Using UMG property bindings on dozens of widgets, causing unnecessary per-frame function calls",
+        "Updating text with FString instead of FText, breaking localization",
+        "Calling SetText() every frame even when the value has not changed, forcing unnecessary widget rebuilds",
+        "Not normalizing values to 0.0-1.0 before calling SetPercent() on a Progress Bar",
+        "Binding to functions that perform expensive operations (database lookups, array searches) every frame"
+      ],
+      "keyPoints": [
+        "Property Bindings (UMG Designer > Bind): polls a function every frame. Easy but expensive for many widgets.",
+        "Event-driven updates: call SetText(), SetPercent(), etc. explicitly when data changes. More efficient.",
+        "For C++: override NativeTick to poll, or bind to model change delegates for push updates.",
+        "Text formatting: use FText::Format() with FFormatNamedArguments for localization-safe text.",
+        "Progress bars: SetPercent(0.0 to 1.0) — normalize your value.",
+        "Images: SetBrushFromTexture(), SetBrushFromMaterial(), SetBrushFromAtlasInterface()."
+      ],
+      "tags": ["binding", "data", "update", "text", "progress bar", "event driven"]
+    },
+    {
+      "id": "ref_ui_005",
+      "title": "Input Modes & Focus",
+      "description": "Input routing between game and UI is controlled by input modes set on the PlayerController.",
+      "whatItIs": "Input Modes are PlayerController settings (GameOnly, UIOnly, GameAndUI) that control whether player input is routed to the game, the UI widgets, or both, along with focus management APIs that determine which widget receives keyboard and gamepad input.",
+      "whenToUse": [
+        "FInputModeGameOnly: during normal gameplay when no menus are open",
+        "FInputModeUIOnly: for full-screen menus, pause screens, or dialogue where game input should stop",
+        "FInputModeGameAndUI: for in-game HUDs with clickable elements (minimap, hotbar) while gameplay continues",
+        "SetKeyboardFocus: when a specific widget (like a text input) needs to receive keyboard events"
+      ],
+      "whenNotToUse": [
+        "Do not use FInputModeGameAndUI when FInputModeUIOnly would be correct — accidental game input during menus causes bugs",
+        "Do not leave input mode set to UIOnly after closing a menu — players will be unable to control their character",
+        "Avoid manually showing/hiding the cursor without also setting the correct input mode"
+      ],
+      "relatedClasses": [
+        "APlayerController",
+        "FInputModeGameOnly",
+        "FInputModeUIOnly",
+        "FInputModeGameAndUI",
+        "UUserWidget",
+        "UWidget"
+      ],
+      "commonMistakes": [
+        "Forgetting to reset input mode back to GameOnly after closing a menu, leaving the player stuck",
+        "Setting ShowMouseCursor without changing the input mode, causing confusing input behavior",
+        "Not setting IsFocusable = true on interactive widgets, making them unreachable by keyboard/gamepad",
+        "Using FInputModeGameAndUI when UIOnly is needed, allowing unintended game actions during menus",
+        "Not managing focus when opening nested menus, causing keyboard/gamepad input to go to the wrong widget"
+      ],
+      "keyPoints": [
+        "FInputModeGameOnly: all input goes to the game. Mouse locked, no cursor. Use during gameplay.",
+        "FInputModeUIOnly: all input goes to UI. Mouse free, cursor visible. Use for full-screen menus.",
+        "FInputModeGameAndUI: input goes to both. Mouse can interact with widgets AND the game receives input.",
+        "SetShowMouseCursor(bool): separate from input mode — controls cursor visibility.",
+        "Widget focus: SetKeyboardFocus(), SetUserFocus() — required for keyboard/gamepad navigation.",
+        "IsFocusable: must be true on interactive widgets for keyboard/gamepad to work."
+      ],
+      "tags": ["input mode", "focus", "cursor", "game only", "ui only", "game and ui"]
+    },
+    {
+      "id": "ref_ui_006",
+      "title": "Widget Components (3D World UI)",
+      "description": "Widget Components render UMG widgets in 3D world space. Used for health bars, nameplates, interactive panels, and in-world displays.",
+      "whatItIs": "UWidgetComponent is an Actor Component that renders a UMG widget onto a 3D surface or billboard in the game world, enabling in-world UI elements like floating health bars, interactive terminals, and nameplates that exist in 3D space rather than screen space.",
+      "whenToUse": [
+        "For floating health bars or nameplates above characters or NPCs",
+        "For in-world interactive screens, terminals, or control panels",
+        "For waypoint markers, objective indicators, or distance labels in 3D space",
+        "When UI needs to be occluded by world geometry or have spatial presence"
+      ],
+      "whenNotToUse": [
+        "For standard HUD elements that should always face the camera in screen space — use AddToViewport instead",
+        "When you have hundreds of Widget Components visible simultaneously — the render target cost is high",
+        "For simple text labels where TextRenderComponent would be sufficient and cheaper",
+        "When the widget does not need interactivity and a simple decal or billboard would suffice"
+      ],
+      "relatedClasses": [
+        "UWidgetComponent",
+        "UWidgetInteractionComponent",
+        "UUserWidget",
+        "UMeshComponent",
+        "UTextRenderComponent"
+      ],
+      "commonMistakes": [
+        "Setting DrawSize too high, creating unnecessarily large render targets that waste GPU memory",
+        "Forgetting to add a WidgetInteractionComponent when the world-space widget needs to be clickable",
+        "Not adjusting the widget's draw size to match the actual screen area it occupies, causing blurry text",
+        "Leaving bDrawAtDesiredSize=true, which can cause performance issues if the widget auto-scales",
+        "Creating Widget Components for every actor in a large crowd instead of only for nearby or targeted actors"
+      ],
+      "keyPoints": [
+        "UWidgetComponent: an Actor Component that renders a UMG widget to a texture in the world",
+        "Space modes: World (fixed in 3D), Screen (always faces camera like a billboard)",
+        "DrawSize: the resolution of the render target (e.g., 400x200). Higher = sharper but more expensive.",
+        "Widget Interaction Component: allows the player to interact with world-space widgets via traces (laser pointer style)",
+        "For performance: set bDrawAtDesiredSize=false and manually control draw size",
+        "Set WidgetClass property to the UMG widget to display"
+      ],
+      "tags": ["widget component", "world space", "3d ui", "health bar", "nameplate", "widget interaction"]
+    },
+    {
+      "id": "ref_ui_007",
+      "title": "CommonUI Framework",
+      "description": "CommonUI is Epic's recommended UI framework for complex game menus. It adds input routing, activation/deactivation stacks, and platform-aware UI on top of UMG.",
+      "whatItIs": "CommonUI is an Epic-provided plugin framework built on top of UMG that adds a managed activation stack for menu widgets, automatic input routing between UI layers, and platform-aware button prompt switching — designed as the production-ready UI architecture for shipping games.",
+      "whenToUse": [
+        "When building complex multi-layered menu systems with push/pop navigation (settings > audio > confirm)",
+        "When your game needs to support both keyboard/mouse and gamepad with automatic button prompt switching",
+        "When you want structured input routing so each menu layer correctly captures or passes through input",
+        "As the standard UI architecture for any production UE5 game with non-trivial menus"
+      ],
+      "whenNotToUse": [
+        "For simple prototypes or game jams where basic UMG AddToViewport/RemoveFromParent suffices",
+        "When you only need a minimal HUD with no layered menu navigation",
+        "If you have an existing custom UI management system that already handles activation stacks and input routing"
+      ],
+      "relatedClasses": [
+        "UCommonActivatableWidget",
+        "UCommonActivatableWidgetContainerBase",
+        "UCommonButtonBase",
+        "UCommonTextBlock",
+        "UCommonGameViewportClient",
+        "UCommonUIActionRouterBase"
+      ],
+      "commonMistakes": [
+        "Forgetting to set CommonGameViewportClient in DefaultEngine.ini, causing CommonUI input routing to not work",
+        "Not enabling the CommonUI plugin in the .uproject file before trying to use CommonUI classes",
+        "Using AddToViewport/RemoveFromParent instead of ActivateWidget/DeactivateWidget, bypassing the activation stack",
+        "Not implementing GetDesiredInputConfig() on activatable widgets, causing unexpected input pass-through",
+        "Mixing raw UMG widget management with CommonUI activation stacks, leading to inconsistent input states"
+      ],
+      "keyPoints": [
+        "UCommonActivatableWidget: base class for menu panels. Supports push/pop activation stack.",
+        "Activation: ActivateWidget() / DeactivateWidget() instead of AddToViewport/RemoveFromParent.",
+        "Input routing: each widget can define what input it accepts via GetDesiredInputConfig().",
+        "Platform-aware: automatically shows correct button prompts for keyboard vs gamepad.",
+        "Used by Lyra (Epic's sample project) as the reference implementation.",
+        "Requires: CommonGameViewportClient set in DefaultEngine.ini, CommonUI plugin enabled."
+      ],
+      "tags": ["commonui", "activatable", "input routing", "platform", "lyra", "stack"]
+    }
+  ]
+}

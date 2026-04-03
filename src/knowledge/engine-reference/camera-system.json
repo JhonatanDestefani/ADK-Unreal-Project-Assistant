@@ -1,0 +1,50 @@
+{
+  "category": "camera-system",
+  "displayName": "Camera System",
+  "description": "UE5 camera: UCameraComponent, USpringArmComponent, PlayerCameraManager, camera blending, view targets, and camera shake",
+  "entries": [
+    {
+      "id": "ref_cam_001",
+      "title": "Camera & Spring Arm Setup",
+      "description": "UCameraComponent defines what the player sees. USpringArmComponent creates a boom arm that handles collision avoidance and lag. Together they form the standard third-person camera.",
+      "whatItIs": "UCameraComponent renders the scene from its viewpoint to the player's screen. USpringArmComponent is a boom arm that positions the camera at a set distance behind the character, with built-in collision detection (pulls the camera forward when it would clip through walls) and optional rotation/position lag for smooth following.",
+      "whenToUse": [
+        "Any third-person game — SpringArm + Camera on the character is the standard setup",
+        "First-person games — Camera attached directly to the character mesh head socket or a SceneComponent at eye height",
+        "Top-down or isometric games — Camera at a fixed angle with longer SpringArm and disabled collision",
+        "Side-scrollers — Camera with a SpringArm at a fixed Y offset"
+      ],
+      "whenNotToUse": [
+        "Fixed security camera views — use a CameraActor placed in the level and SetViewTarget",
+        "Cinematic cameras during cutscenes — use ACineCameraActor with Sequencer",
+        "When you need complex camera behaviors (orbit, rail, crane) — use the Camera Rig actors or custom PlayerCameraManager"
+      ],
+      "relatedClasses": [
+        "UCameraComponent",
+        "USpringArmComponent",
+        "APlayerCameraManager",
+        "ACameraActor",
+        "ACineCameraActor",
+        "APlayerController"
+      ],
+      "commonMistakes": [
+        "Attaching the Camera to the Mesh instead of the SpringArm — the camera jitters with every animation frame",
+        "Not enabling bUsePawnControlRotation on the SpringArm — the camera doesn't follow mouse/stick look",
+        "Setting bInheritPitch/Yaw/Roll wrong on the SpringArm — the camera tilts unexpectedly or doesn't rotate",
+        "Not using bDoCollisionTest on the SpringArm — the camera clips through walls in third-person",
+        "Setting CameraLagSpeed too low — the camera feels sluggish and disconnected from the character"
+      ],
+      "keyPoints": [
+        "USpringArmComponent: TargetArmLength (distance), bDoCollisionTest (wall avoidance), bUsePawnControlRotation (follow mouse)",
+        "Camera Lag: bEnableCameraLag, CameraLagSpeed — smooth follow instead of rigid attachment",
+        "Rotation Lag: bEnableCameraRotationLag, CameraRotationLagSpeed — smooth turn",
+        "UCameraComponent: FieldOfView, AspectRatio, PostProcessSettings — what the player sees",
+        "SetViewTargetWithBlend(): smoothly transition between cameras over time",
+        "PlayerCameraManager: handles camera shakes, fades, and view target management per PlayerController",
+        "Camera shake: UMatineeCameraShake or UCameraShakeBase — trigger with PlayerCameraManager->StartCameraShake()"
+      ],
+      "codeExample": "// Standard third-person camera setup\nAMyCharacter::AMyCharacter() {\n    // Spring Arm\n    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT(\"SpringArm\"));\n    SpringArm->SetupAttachment(RootComponent);\n    SpringArm->TargetArmLength = 300.f;\n    SpringArm->bUsePawnControlRotation = true; // Follow mouse\n    SpringArm->bDoCollisionTest = true;         // Avoid walls\n    SpringArm->bEnableCameraLag = true;\n    SpringArm->CameraLagSpeed = 10.f;\n    \n    // Camera\n    Camera = CreateDefaultSubobject<UCameraComponent>(TEXT(\"Camera\"));\n    Camera->SetupAttachment(SpringArm);\n    Camera->FieldOfView = 90.f;\n}\n\n// Camera shake on hit\nvoid AMyCharacter::OnDamageTaken() {\n    APlayerController* PC = Cast<APlayerController>(GetController());\n    if (PC && PC->PlayerCameraManager) {\n        PC->PlayerCameraManager->StartCameraShake(HitCameraShake, 1.0f);\n    }\n}\n\n// Blend to a cinematic camera\nvoid AMyTrigger::SwitchToCamera(ACameraActor* NewCamera) {\n    APlayerController* PC = GetWorld()->GetFirstPlayerController();\n    PC->SetViewTargetWithBlend(NewCamera, 1.5f, EViewTargetBlendFunction::VTBlend_EaseInOut);\n}",
+      "tags": ["camera", "spring arm", "third person", "first person", "camera lag", "collision", "field of view", "camera shake"]
+    }
+  ]
+}

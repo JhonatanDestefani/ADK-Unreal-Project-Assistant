@@ -1,0 +1,232 @@
+{
+  "category": "audio",
+  "displayName": "Audio System",
+  "description": "UE5 audio: SoundCues, MetaSounds, AudioComponents, spatialization, sound classes, attenuation, and music systems",
+  "entries": [
+    {
+      "id": "ref_audio_001",
+      "title": "Audio Basics — Playing Sounds",
+      "description": "UE5 provides several ways to play audio: fire-and-forget functions, persistent AudioComponents, and 2D/3D spatialization. Most common usage is through UGameplayStatics.",
+      "whatItIs": "The core audio playback API in UE5, providing static helper functions for one-shot sounds and the UAudioComponent class for persistent, controllable sound playback in both 2D and 3D space.",
+      "whenToUse": [
+        "Playing one-shot sound effects like gunshots, footsteps, or UI clicks",
+        "Attaching looping sounds to moving actors like vehicles or characters",
+        "When you need runtime control over volume, pitch, or parameters of a playing sound",
+        "Spawning 3D positional audio at impact or explosion locations"
+      ],
+      "whenNotToUse": [
+        "For complex layered or procedural audio — use MetaSounds instead",
+        "For background music that needs crossfading — use a dedicated music manager or Sound Mix system",
+        "When you need variation logic like random selection — use Sound Cues or MetaSounds instead of raw SoundWaves"
+      ],
+      "relatedClasses": [
+        "UAudioComponent",
+        "UGameplayStatics",
+        "USoundBase",
+        "USoundWave",
+        "USoundCue",
+        "UMetaSoundSource",
+        "USoundAttenuation",
+        "USoundConcurrency"
+      ],
+      "commonMistakes": [
+        "Using PlaySoundAtLocation for sounds that need to be stopped or modified later — use SpawnSoundAtLocation or UAudioComponent instead",
+        "Not storing the FTimerHandle or UAudioComponent pointer, losing the ability to stop or control the sound",
+        "Spawning hundreds of fire-and-forget sounds per frame without concurrency limits, causing audio overload",
+        "Using PlaySound2D for in-world sounds that should be spatialized, resulting in sounds with no positional audio",
+        "Forgetting to set bAutoActivate to false on AudioComponents that should not play on BeginPlay"
+      ],
+      "keyPoints": [
+        "PlaySoundAtLocation(): fire-and-forget 3D sound. No control after playing. Cheapest option.",
+        "PlaySound2D(): non-spatialized (no 3D positioning). Use for UI sounds, music stings.",
+        "SpawnSoundAtLocation(): like PlaySoundAtLocation but returns a UAudioComponent for control.",
+        "SpawnSoundAttached(): spawn a sound attached to a component (follows it).",
+        "UAudioComponent: persistent sound player. CreateDefaultSubobject or spawn at runtime. Play(), Stop(), SetPaused().",
+        "Sound assets: USoundWave (raw audio), USoundCue (node-based), UMetaSoundSource (procedural).",
+        "Volume & Pitch multipliers on all Play functions for quick variation",
+        "Concurrency: Sound Concurrency settings limit how many instances of a sound can play simultaneously"
+      ],
+      "codeExample": "// Fire-and-forget 3D sound\nUGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());\n\n// 2D UI sound\nUGameplayStatics::PlaySound2D(this, ButtonClickSound);\n\n// Persistent audio component\nUPROPERTY(VisibleAnywhere)\nUAudioComponent* EngineAudioComp;\n\nAMyCar::AMyCar() {\n    EngineAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT(\"EngineAudio\"));\n    EngineAudioComp->SetupAttachment(RootComponent);\n    EngineAudioComp->bAutoActivate = true;\n}\n\n// Control at runtime\nEngineAudioComp->SetFloatParameter(TEXT(\"RPM\"), CurrentRPM);\nEngineAudioComp->SetVolumeMultiplier(0.5f);\nEngineAudioComp->Stop();\nEngineAudioComp->Play();",
+      "tags": ["audio", "sound", "play sound", "audio component", "3d sound", "2d sound", "volume"]
+    },
+    {
+      "id": "ref_audio_002",
+      "title": "Sound Cues",
+      "description": "Sound Cues are node-based audio assets that combine, randomize, modulate, and layer sound waves. They provide variation and dynamic behavior without code.",
+      "whatItIs": "A legacy node-based audio asset (USoundCue) that lets designers visually wire together SoundWaves with logic nodes for randomization, modulation, mixing, and parameter-driven behavior, all without writing C++ or Blueprints.",
+      "whenToUse": [
+        "Adding quick variation to repetitive sounds like footsteps or gunshots using Random and Modulator nodes",
+        "Layering multiple sound waves together for a composite effect (e.g., explosion = boom + debris + rumble)",
+        "When your audio team is already familiar with Sound Cues and the project does not require procedural DSP",
+        "Simple looping ambient sounds with basic parameter-driven crossfading"
+      ],
+      "whenNotToUse": [
+        "For new projects targeting UE5.2+ — prefer MetaSounds for better performance and flexibility",
+        "When you need real-time DSP processing like filters, oscillators, or envelope generators",
+        "For highly dynamic procedural audio that reacts to many gameplay parameters simultaneously",
+        "When performance is critical and you have many concurrent sound instances — MetaSounds compile to more efficient code"
+      ],
+      "relatedClasses": [
+        "USoundCue",
+        "USoundWave",
+        "USoundNodeRandom",
+        "USoundNodeModulator",
+        "USoundNodeMixer",
+        "USoundNodeLooping",
+        "USoundNodeAttenuation",
+        "USoundNodeConcatenator",
+        "UAudioComponent"
+      ],
+      "commonMistakes": [
+        "Using Sound Cues for complex procedural audio when MetaSounds would be more performant and flexible",
+        "Creating deeply nested node graphs that become hard to maintain — split into multiple cues instead",
+        "Forgetting to set the Looping node for sounds that need to repeat, causing them to play once and stop",
+        "Not setting up Sound Concurrency, allowing dozens of the same cue to stack and cause audio clipping",
+        "Overlooking the Modulator node for adding subtle pitch/volume variation, making sounds feel repetitive"
+      ],
+      "keyPoints": [
+        "Node-based editor: combine multiple SoundWaves with logic nodes",
+        "Random node: randomly pick from multiple waves (footstep variation, gunshot variation)",
+        "Modulator node: randomize pitch/volume within a range for each play",
+        "Mixer node: layer multiple sounds together (combine fire + shell casing + echo)",
+        "Looping node: set a sound to loop (ambient, engine hum)",
+        "Attenuation node: override spatialization settings per cue",
+        "Crossfade by Param: blend between sounds based on a runtime parameter (RPM-based engine sounds)",
+        "Branch node: conditional playback based on a Switch parameter"
+      ],
+      "tags": ["sound cue", "random", "modulator", "mixer", "loop", "variation", "node"]
+    },
+    {
+      "id": "ref_audio_003",
+      "title": "MetaSounds (UE5.2+)",
+      "description": "MetaSounds are UE5's new procedural audio system. They generate and process audio in real-time using a node-based DSP graph. More powerful and performant than Sound Cues.",
+      "whatItIs": "UE5's next-generation procedural audio system that uses a compiled, node-based DSP graph to generate and process audio in real-time. MetaSounds replace Sound Cues as the primary audio authoring tool, offering oscillators, filters, envelopes, and full parameter control from gameplay code.",
+      "whenToUse": [
+        "Creating procedural or reactive audio that changes dynamically based on gameplay parameters (engine RPM, wind speed, health)",
+        "Building complex audio behaviors with real-time DSP: filtering, synthesis, granular playback",
+        "New UE5 projects that want the best audio performance and most modern tooling",
+        "When audio designers need maximum creative control with a visual node-based workflow"
+      ],
+      "whenNotToUse": [
+        "Simple one-shot sound effects that don't need any dynamic behavior — a raw SoundWave or basic Sound Cue is simpler",
+        "When targeting UE versions before 5.2 where MetaSounds are not fully supported",
+        "Quick prototyping where setting up a full MetaSound graph is overkill"
+      ],
+      "relatedClasses": [
+        "UMetaSoundSource",
+        "UAudioComponent",
+        "UMetaSoundPatch",
+        "UNiagaraFunctionLibrary",
+        "USoundBase",
+        "UGameplayStatics"
+      ],
+      "commonMistakes": [
+        "Forgetting to expose input parameters in the MetaSound graph, then wondering why SetFloatParameter has no effect",
+        "Using the wrong parameter name string in C++ — parameter names must match exactly (case-sensitive) with what is defined in the graph",
+        "Not connecting the output of the graph to the final Output node, resulting in silence",
+        "Trying to use MetaSound-specific features (like triggers) on a Sound Cue asset, which does not support them",
+        "Creating overly complex graphs without using MetaSound Patches for reusable sub-graphs, leading to duplication and maintenance issues"
+      ],
+      "keyPoints": [
+        "Node-based DSP graph: oscillators, filters, envelopes, math operations, delays",
+        "Replaces Sound Cues for complex audio design — MetaSounds can do everything Cues can and more",
+        "Input parameters: expose float, int, bool, trigger inputs controllable from gameplay code",
+        "Set parameters: AudioComponent->SetFloatParameter(Name, Value)",
+        "Triggers: fire one-shot events into the MetaSound graph (e.g., 'OnHit' trigger)",
+        "MetaSound Sources: the playable asset (equivalent to Sound Cue). Use like any other sound asset.",
+        "MetaSound Patches: reusable sub-graphs shared between MetaSounds",
+        "Performance: compiled to optimized audio code, more efficient than Sound Cue node evaluation"
+      ],
+      "codeExample": "// Playing a MetaSound and controlling parameters\nUPROPERTY(EditAnywhere)\nUSoundBase* EngineMetaSound; // Can be a MetaSoundSource\n\nUAudioComponent* AudioComp = UGameplayStatics::SpawnSoundAttached(\n    EngineMetaSound, GetRootComponent()\n);\n\n// Set parameters at runtime\nAudioComp->SetFloatParameter(TEXT(\"RPM\"), CurrentRPM);\nAudioComp->SetFloatParameter(TEXT(\"Load\"), ThrottlePercent);\nAudioComp->SetBoolParameter(TEXT(\"bTurboActive\"), bTurboOn);\n\n// Fire a one-shot trigger\nAudioComp->SetTriggerParameter(TEXT(\"OnGearShift\"));",
+      "tags": ["metasound", "procedural audio", "dsp", "parameter", "trigger", "oscillator", "filter"]
+    },
+    {
+      "id": "ref_audio_004",
+      "title": "Sound Attenuation & Spatialization",
+      "description": "Sound Attenuation controls how 3D sounds fade with distance and how they are spatialized (positioned in the stereo/surround field).",
+      "whatItIs": "The USoundAttenuation asset and its associated settings that define how a 3D sound's volume, frequency content, and stereo position change based on the listener's distance and orientation. It handles falloff curves, occlusion through walls, air absorption, and focus directionality.",
+      "whenToUse": [
+        "Any 3D world sound that should get quieter with distance (gunfire, footsteps, ambient sources)",
+        "When sounds need to be muffled or blocked by walls and obstacles (occlusion)",
+        "Creating immersive environments where distant sounds lose high frequencies realistically",
+        "When different sound types need different audible ranges (whisper vs. explosion)"
+      ],
+      "whenNotToUse": [
+        "2D sounds like UI clicks, menu music, or HUD notifications that should play at constant volume regardless of position",
+        "Sounds that are always played at the listener's position (first-person weapon sounds that should not attenuate)",
+        "Narration or dialogue that must always be clearly audible to the player"
+      ],
+      "relatedClasses": [
+        "USoundAttenuation",
+        "FSoundAttenuationSettings",
+        "UAudioComponent",
+        "UGameplayStatics",
+        "USoundBase",
+        "FAttenuationListenerData"
+      ],
+      "commonMistakes": [
+        "Setting Falloff Distance too small, causing sounds to cut off abruptly at short range",
+        "Forgetting to assign an Attenuation asset to a Sound Cue or AudioComponent, resulting in sounds heard everywhere at full volume",
+        "Enabling Occlusion without proper collision geometry, causing sounds to be incorrectly muffled or not muffled at all",
+        "Using Natural Sound (inverse distance) falloff without understanding that it can be extremely loud at very close range",
+        "Confusing Inner Radius with Falloff Distance — Inner Radius is full volume zone, Falloff Distance is the fade-out range beyond it"
+      ],
+      "keyPoints": [
+        "Sound Attenuation asset: reusable settings for distance falloff, spatialization, and occlusion",
+        "Inner Radius: full volume within this distance",
+        "Falloff Distance: sound fades to silence at Inner Radius + Falloff Distance",
+        "Falloff curves: Linear, Logarithmic, Natural Sound (inverse distance), Custom curve",
+        "Spatialization: panning the sound in the stereo/surround field based on listener position",
+        "Occlusion: reduce volume when objects are between source and listener (walls muffle sound)",
+        "Air Absorption: high frequencies attenuate faster over distance (realistic outdoor falloff)",
+        "Focus: sounds in the player's look direction are louder than sounds behind them",
+        "Apply on PlaySoundAtLocation with Attenuation parameter, or set on AudioComponent"
+      ],
+      "tags": ["attenuation", "spatialization", "distance", "falloff", "occlusion", "3d audio", "radius"]
+    },
+    {
+      "id": "ref_audio_005",
+      "title": "Sound Classes & Sound Mix",
+      "description": "Sound Classes categorize audio (SFX, Music, Dialogue, UI) and Sound Mixes adjust volumes per class. Essential for options menus and dynamic audio control.",
+      "whatItIs": "A two-part system where USoundClass assets categorize sounds into groups (SFX, Music, Dialogue, UI) and USoundMix assets define per-class volume and pitch adjustments. Together they enable global audio control such as options menu sliders and context-sensitive mixing (e.g., lowering music during dialogue).",
+      "whenToUse": [
+        "Implementing an audio options menu with separate volume sliders for Music, SFX, Dialogue, etc.",
+        "Dynamically lowering background music during cutscenes or important dialogue",
+        "Muting or ducking specific sound categories during pause menus or loading screens",
+        "Organizing audio assets into a hierarchy for global volume control"
+      ],
+      "whenNotToUse": [
+        "Controlling individual sound instance volume — use AudioComponent->SetVolumeMultiplier instead",
+        "Fine-grained per-sound DSP processing — use MetaSounds for that level of control",
+        "When you only have a single category of sounds and don't need separate volume controls"
+      ],
+      "relatedClasses": [
+        "USoundClass",
+        "USoundMix",
+        "UGameplayStatics",
+        "UAudioComponent",
+        "FAudioDevice",
+        "USoundBase"
+      ],
+      "commonMistakes": [
+        "Forgetting to call PushSoundMixModifier after setting overrides, so the mix changes never take effect",
+        "Pushing the same Sound Mix multiple times without popping, causing stacking issues",
+        "Not setting up a Sound Class hierarchy (Master -> SFX, Master -> Music), so adjusting the Master volume does not affect child classes",
+        "Assigning sounds to the wrong Sound Class, causing them to be affected by the wrong volume slider",
+        "Not saving volume settings to a SaveGame or config, so player preferences reset every session"
+      ],
+      "keyPoints": [
+        "Sound Class: categorizes sounds (Master, SFX, Music, Dialogue, Ambient, UI)",
+        "Assign via: Sound Cue > Sound Class property, or on AudioComponent",
+        "Sound Mix: defines volume/pitch adjustments per Sound Class",
+        "PushSoundMixModifier(SoundMix): activate a mix (e.g., 'PausedMix' that lowers SFX)",
+        "PopSoundMixModifier(SoundMix): deactivate a mix",
+        "SetSoundMixClassOverride(): dynamically change a class's volume in a mix at runtime",
+        "Use for options menu: player adjusts Music/SFX/Dialogue sliders → modify Sound Mix values",
+        "Hierarchy: child Sound Classes inherit from parent. Master → SFX, Master → Music, etc."
+      ],
+      "codeExample": "// Volume settings from options menu\nvoid UMyAudioManager::SetMusicVolume(float Volume) {\n    // Option 1: Sound Mix override\n    UGameplayStatics::SetSoundMixClassOverride(\n        GetWorld(), MainSoundMix, MusicSoundClass,\n        Volume,  // Volume\n        1.0f,    // Pitch\n        0.5f     // Fade time\n    );\n    UGameplayStatics::PushSoundMixModifier(GetWorld(), MainSoundMix);\n}\n\n// Option 2: Direct class volume (simpler)\nvoid UMyAudioManager::SetSFXVolume(float Volume) {\n    if (FAudioDevice* AudioDevice = GetWorld()->GetAudioDevice().GetAudioDevice()) {\n        AudioDevice->SetClassVolume(SFXSoundClass, Volume);\n    }\n}",
+      "tags": ["sound class", "sound mix", "volume", "music", "sfx", "dialogue", "options", "mixer"]
+    }
+  ]
+}

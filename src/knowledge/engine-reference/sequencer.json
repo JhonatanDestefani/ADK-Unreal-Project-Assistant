@@ -1,0 +1,54 @@
+{
+  "category": "sequencer",
+  "displayName": "Sequencer & Cinematics",
+  "description": "UE5 Level Sequencer: cinematic sequences, camera cuts, tracks, bindings, triggering from gameplay, and Cine Camera",
+  "entries": [
+    {
+      "id": "ref_seq_001",
+      "title": "Level Sequencer Overview",
+      "description": "Level Sequencer is UE5's cinematic and animation tool. It controls actors, cameras, animations, audio, and events on a timeline for cutscenes, intros, and scripted gameplay moments.",
+      "whatItIs": "ULevelSequence is a timeline-based editor that keyframes actor properties, triggers camera cuts, plays animations and audio, and fires events — all synchronized on a frame-accurate timeline. It replaces the legacy Matinee system.",
+      "whenToUse": [
+        "Cutscenes and cinematics with camera work, actor movement, and dialogue",
+        "Game intros, outros, and scripted story moments",
+        "Scripted gameplay events that need precise timing (doors opening, explosions, lights changing)",
+        "Previsualization and machinima for trailers or storyboarding",
+        "Blending between gameplay camera and cinematic camera"
+      ],
+      "whenNotToUse": [
+        "Simple value interpolation during gameplay — use Timelines instead",
+        "Runtime-driven animations that depend on gameplay state — use AnimMontages or AnimBlueprints",
+        "Procedural or randomized events — Sequencer is authored, not procedural",
+        "Looping ambient animations on individual actors — use a Timeline or looping AnimSequence"
+      ],
+      "relatedClasses": [
+        "ULevelSequence",
+        "ALevelSequenceActor",
+        "ULevelSequencePlayer",
+        "UMovieSceneSequence",
+        "ACineCameraActor",
+        "ACameraActor",
+        "UMovieScene"
+      ],
+      "commonMistakes": [
+        "Not binding Sequencer tracks to the correct actors in the level — tracks show 'unbound' and nothing plays",
+        "Forgetting to set the Sequencer to 'Auto Play' or trigger it from code/Blueprint, so the cutscene never starts",
+        "Using Sequencer for gameplay interpolation that should be a Timeline — Sequencer is heavier and harder to control dynamically",
+        "Not adding a Camera Cuts track — without it, the player camera doesn't switch to the cinematic camera",
+        "Leaving the player controller in gameplay mode during a cutscene — the player can still move and shoot"
+      ],
+      "keyPoints": [
+        "Create: Content Browser > Cinematics > Level Sequence. Drag into the level to create a LevelSequenceActor.",
+        "Tracks: add actors, then add property tracks (Transform, Visibility, Material parameters, etc.)",
+        "Camera Cuts track: switches the active camera between CineCameraActors during playback",
+        "ACineCameraActor: camera with filmback settings (sensor size, focal length, aperture, focus)",
+        "Trigger from Blueprint: get the LevelSequenceActor reference, call Play(), Stop(), Pause()",
+        "Trigger from C++: ULevelSequencePlayer::CreateLevelSequencePlayer() or Get from the LevelSequenceActor",
+        "Events track: fire Blueprint/C++ events at specific frames in the sequence",
+        "Subsequences: embed one sequence inside another for modular cutscene assembly"
+      ],
+      "codeExample": "// Trigger a cutscene from C++\nUPROPERTY(EditAnywhere)\nALevelSequenceActor* CutsceneActor;\n\nvoid AMyTrigger::PlayCutscene() {\n    if (CutsceneActor) {\n        ULevelSequencePlayer* Player = CutsceneActor->GetSequencePlayer();\n        if (Player) {\n            // Disable player input during cutscene\n            APlayerController* PC = GetWorld()->GetFirstPlayerController();\n            PC->SetInputMode(FInputModeUIOnly());\n            PC->SetShowMouseCursor(false);\n            \n            // Bind to finished event\n            Player->OnFinished.AddDynamic(this, &AMyTrigger::OnCutsceneFinished);\n            \n            Player->Play();\n        }\n    }\n}\n\nvoid AMyTrigger::OnCutsceneFinished() {\n    // Restore player input\n    APlayerController* PC = GetWorld()->GetFirstPlayerController();\n    PC->SetInputMode(FInputModeGameOnly());\n}",
+      "tags": ["sequencer", "level sequence", "cinematic", "cutscene", "camera cuts", "cine camera", "timeline", "matinee"]
+    }
+  ]
+}

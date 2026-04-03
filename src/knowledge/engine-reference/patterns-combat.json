@@ -1,0 +1,57 @@
+{
+  "category": "patterns-combat",
+  "displayName": "Patterns: Combat & Damage",
+  "description": "Architectural patterns and mental blueprints for building combat and damage systems in UE5",
+  "entries": [
+    {
+      "id": "pat_health_001",
+      "title": "Pattern: Health & Damage System",
+      "description": "How to structure a health and damage system using components so any Actor in your game can take and deal damage without deep inheritance chains.",
+      "whatItIs": "A reusable architecture for health, damage, and death. The core idea: health is a component, damage is delivered through UE5's damage framework, and death is an event that the owning Actor decides how to handle.",
+      "whenToUse": [
+        "Any game where actors can take damage and die (players, enemies, destructibles, vehicles)",
+        "When multiple different Actor types need health (don't duplicate logic per class)",
+        "When you want designers to tweak health values per Actor in the editor"
+      ],
+      "whenNotToUse": [
+        "If you're using GAS — use AttributeSets for health instead, the damage pipeline is different",
+        "Extremely simple games where only one thing has health (just put it directly on the class)"
+      ],
+      "keyPoints": [
+        "STEP 1 — Create a UHealthComponent (inherits UActorComponent). It owns: MaxHealth, CurrentHealth, and an OnHealthChanged delegate.",
+        "STEP 2 — The HealthComponent listens for damage. Override the owning Actor's TakeDamage or bind to OnTakeAnyDamage inside the component's BeginPlay.",
+        "STEP 3 — When health reaches zero, broadcast an OnDeath delegate. The component does NOT decide what death looks like — it just announces it.",
+        "STEP 4 — The owning Actor (enemy, player, barrel) listens to OnDeath and handles its own death: play animation, ragdoll, drop loot, respawn, whatever.",
+        "STEP 5 — For dealing damage, use UGameplayStatics::ApplyDamage or ApplyPointDamage. This goes through UE5's built-in damage pipeline.",
+        "STEP 6 — Expose CurrentHealth and MaxHealth as BlueprintReadOnly so UI widgets can bind to them directly.",
+        "STEP 7 — For multiplayer: replicate CurrentHealth with ReplicatedUsing and let the server be authoritative on all damage calculations."
+      ],
+      "commonMistakes": [
+        "Putting health logic directly in ACharacter and then copy-pasting it to enemies, destructibles, etc. — use a component",
+        "Having the HealthComponent destroy the Actor on death — the Actor should decide its own death behavior",
+        "Applying damage on the client instead of the server in multiplayer — damage must be server-authoritative",
+        "Coupling the HealthComponent to a specific Actor type (casting to AMyCharacter inside the component) — keep it generic",
+        "Forgetting to clamp health between 0 and MaxHealth — negative health or health above max causes bugs",
+        "Not using UE5's damage framework (TakeDamage/ApplyDamage) and instead calling custom functions directly — you lose DamageType support and engine integration"
+      ],
+      "goodPractices": [
+        "HealthComponent only manages numbers and broadcasts events — no visual logic, no game logic",
+        "Use delegates (OnHealthChanged, OnDeath) so other systems can react without tight coupling",
+        "Support damage types (UDamageType) so you can have fire damage, poison damage, etc. with different behaviors",
+        "Add an Invincible bool on the component for easy designer control (cutscenes, spawn protection)",
+        "Keep the component self-contained — it should work on any Actor without knowing what that Actor is"
+      ],
+      "relatedClasses": [
+        "UActorComponent",
+        "UDamageType",
+        "UGameplayStatics",
+        "FDamageEvent",
+        "FPointDamageEvent",
+        "FRadialDamageEvent",
+        "AActor"
+      ],
+      "codeExample": "// HealthComponent.h — reusable on any Actor\nUCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))\nclass UHealthComponent : public UActorComponent\n{\n    GENERATED_BODY()\npublic:\n    UHealthComponent();\n\n    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = \"Health\")\n    float MaxHealth = 100.f;\n\n    UPROPERTY(ReplicatedUsing=OnRep_CurrentHealth, BlueprintReadOnly, Category = \"Health\")\n    float CurrentHealth;\n\n    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = \"Health\")\n    bool bInvincible = false;\n\n    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, NewHealth, float, Delta);\n    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeath);\n\n    UPROPERTY(BlueprintAssignable)\n    FOnHealthChanged OnHealthChanged;\n\n    UPROPERTY(BlueprintAssignable)\n    FOnDeath OnDeath;\n\nprotected:\n    virtual void BeginPlay() override;\n\n    UFUNCTION()\n    void HandleTakeAnyDamage(AActor* DamagedActor, float Damage,\n        const UDamageType* DamageType, AController* Instigator, AActor* DamageCauser);\n\n    UFUNCTION()\n    void OnRep_CurrentHealth();\n};\n\n// HealthComponent.cpp\nvoid UHealthComponent::BeginPlay()\n{\n    Super::BeginPlay();\n    CurrentHealth = MaxHealth;\n    GetOwner()->OnTakeAnyDamage.AddDynamic(this, &UHealthComponent::HandleTakeAnyDamage);\n}\n\nvoid UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage,\n    const UDamageType* DamageType, AController* Instigator, AActor* DamageCauser)\n{\n    if (bInvincible || CurrentHealth <= 0.f) return;\n\n    CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.f, MaxHealth);\n    OnHealthChanged.Broadcast(CurrentHealth, -Damage);\n\n    if (CurrentHealth <= 0.f)\n    {\n        OnDeath.Broadcast();\n    }\n}\n\n// Any Actor using it — the Actor decides what death means\nAMyEnemy::AMyEnemy()\n{\n    HealthComp = CreateDefaultSubobject<UHealthComponent>(TEXT(\"HealthComp\"));\n}\n\nvoid AMyEnemy::BeginPlay()\n{\n    Super::BeginPlay();\n    HealthComp->OnDeath.AddDynamic(this, &AMyEnemy::HandleDeath);\n}\n\nvoid AMyEnemy::HandleDeath()\n{\n    // Enemy decides its own death: ragdoll, drop loot, etc.\n}",
+      "tags": ["pattern", "health", "damage", "death", "component", "architecture", "how to build", "structure"]
+    }
+  ]
+}

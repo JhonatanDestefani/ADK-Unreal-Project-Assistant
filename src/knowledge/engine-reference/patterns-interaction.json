@@ -1,0 +1,58 @@
+{
+  "category": "patterns-interaction",
+  "displayName": "Patterns: Interaction System",
+  "description": "Architectural patterns for building interaction systems in UE5 — doors, pickups, NPCs, levers",
+  "entries": [
+    {
+      "id": "pat_interact_001",
+      "title": "Pattern: Interaction System",
+      "description": "How to structure an interaction system using an interface for interactable actors, a component on the player for detection, and line traces or overlaps for targeting. Works for doors, chests, NPCs, pickups, levers — anything the player can interact with.",
+      "whatItIs": "A modular interaction architecture: an interface defines WHAT can be interacted with, a component on the player handles HOW interaction is detected and triggered, and each interactable Actor decides its own behavior when interacted with.",
+      "whenToUse": [
+        "Any game where the player presses a button to interact with world objects",
+        "When you have many different interactable types (doors, NPCs, pickups, terminals) that each do something different",
+        "When you want a consistent 'Press E to interact' prompt across all interactables"
+      ],
+      "whenNotToUse": [
+        "If interaction is only collision-based (walking over pickups) — just use overlap events directly",
+        "If you have exactly one interactable type — a full system adds unnecessary complexity"
+      ],
+      "keyPoints": [
+        "STEP 1 — Create an IInteractable interface (UInterface in C++). It declares: Interact(AActor* Caller), GetInteractionPrompt() returning FText, and CanInteract(AActor* Caller) returning bool.",
+        "STEP 2 — Create a UInteractionComponent (inherits UActorComponent) on the player. It is responsible for: detecting what the player is looking at, showing/hiding the interaction prompt, and triggering interaction on input.",
+        "STEP 3 — The InteractionComponent runs a line trace (or sphere trace) forward from the camera each tick (or on a short timer). If it hits an Actor that implements IInteractable, store it as the CurrentTarget.",
+        "STEP 4 — When the player presses the interact key, the InteractionComponent calls IInteractable::Interact(PlayerActor) on the CurrentTarget. The component does NOT know what will happen — it just calls the interface.",
+        "STEP 5 — Each interactable Actor implements the interface its own way: a door toggles open/close, a chest opens the loot UI, an NPC starts dialogue, a pickup adds to inventory.",
+        "STEP 6 — For the UI prompt: the InteractionComponent updates a widget (or broadcasts a delegate) with GetInteractionPrompt() text from the current target. When no target, hide the prompt.",
+        "STEP 7 — For multiplayer: the interaction request goes through a ServerRPC. The server validates CanInteract and then executes the interaction."
+      ],
+      "commonMistakes": [
+        "Using actor casting instead of an interface — casting to specific types (Cast<ADoor>) creates hard dependencies and breaks when you add new interactable types",
+        "Putting the detection logic on every interactable instead of on the player — the player should find targets, not the other way around",
+        "Using Tick with line traces at full frame rate — use a timer (0.1s) or only trace when the player moves/looks around",
+        "Coupling the interaction prompt UI to specific actors — the prompt should only display text from GetInteractionPrompt(), nothing actor-specific",
+        "Forgetting CanInteract checks — doors that are locked, NPCs in combat, pickups already taken should return false",
+        "Running interaction logic on the client in multiplayer — always validate on the server"
+      ],
+      "goodPractices": [
+        "The interface is the contract — any Actor that implements IInteractable is automatically interactive, no registration needed",
+        "The InteractionComponent knows nothing about doors, NPCs, or pickups — it just finds IInteractable actors and calls the interface",
+        "Each interactable is self-contained — a door knows how to open, a chest knows how to show loot, they don't share logic",
+        "Use CanInteract to control state: locked doors, NPCs in combat, one-time pickups",
+        "Add an InteractionRange float on the component so designers can tune how far the player can reach",
+        "For multiple interaction options (Talk/Trade on an NPC), extend the interface with GetInteractionOptions() returning an array"
+      ],
+      "relatedClasses": [
+        "UInterface",
+        "IInterface",
+        "UActorComponent",
+        "UKismetSystemLibrary",
+        "FHitResult",
+        "UUserWidget",
+        "APlayerController"
+      ],
+      "codeExample": "// IInteractable.h — the contract\nUINTERFACE(MinimalAPI)\nclass UInteractable : public UInterface\n{\n    GENERATED_BODY()\n};\n\nclass IInteractable\n{\n    GENERATED_BODY()\npublic:\n    UFUNCTION(BlueprintNativeEvent, BlueprintCallable)\n    void Interact(AActor* Caller);\n\n    UFUNCTION(BlueprintNativeEvent, BlueprintCallable)\n    FText GetInteractionPrompt();\n\n    UFUNCTION(BlueprintNativeEvent, BlueprintCallable)\n    bool CanInteract(AActor* Caller);\n};\n\n// InteractionComponent.h — on the player, handles detection\nUCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))\nclass UInteractionComponent : public UActorComponent\n{\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditAnywhere, Category = \"Interaction\")\n    float InteractionRange = 300.f;\n\n    UFUNCTION(BlueprintCallable)\n    void TryInteract();\n\n    UPROPERTY(BlueprintReadOnly)\n    AActor* CurrentTarget;\n\n    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChanged, AActor*, NewTarget);\n\n    UPROPERTY(BlueprintAssignable)\n    FOnTargetChanged OnTargetChanged;\n\nprotected:\n    virtual void TickComponent(float DeltaTime, ELevelTick TickType,\n        FActorComponentTickFunction* ThisTickFunction) override;\n    void PerformTrace();\n};\n\n// A door implementing the interface\nclass AMyDoor : public AActor, public IInteractable\n{\n    GENERATED_BODY()\npublic:\n    virtual void Interact_Implementation(AActor* Caller) override\n    {\n        bIsOpen = !bIsOpen;\n        // Play open/close animation\n    }\n\n    virtual FText GetInteractionPrompt_Implementation() override\n    {\n        return bIsOpen ? FText::FromString(\"Close Door\") : FText::FromString(\"Open Door\");\n    }\n\n    virtual bool CanInteract_Implementation(AActor* Caller) override\n    {\n        return !bIsLocked;\n    }\n};",
+      "tags": ["pattern", "interaction", "interact", "interface", "line trace", "door", "pickup", "NPC", "how to build", "structure", "press E"]
+    }
+  ]
+}

@@ -1,0 +1,269 @@
+{
+  "category": "materials-rendering",
+  "displayName": "Materials & Rendering",
+  "description": "UE5 rendering: Nanite, Lumen, materials, shaders, post-process, lighting, and rendering pipeline",
+  "entries": [
+    {
+      "id": "ref_render_001",
+      "title": "Nanite Virtualized Geometry",
+      "description": "Nanite is UE5's virtualized geometry system that renders massive amounts of geometric detail. It dynamically streams and processes mesh data, eliminating the need for traditional LODs for static meshes.",
+      "whatItIs": "Nanite is a hardware-accelerated virtualized geometry system that intelligently streams and renders only the triangles visible at each pixel, allowing scenes with billions of triangles to render efficiently without manual LOD authoring.",
+      "whenToUse": [
+        "When using high-poly static meshes (archviz, photogrammetry, film-quality assets)",
+        "When you want automatic LOD management without manually creating LOD chains",
+        "For large open worlds with dense geometric detail like foliage, rocks, and buildings",
+        "When targeting high-end PC or current-gen consoles (PS5, Xbox Series X)"
+      ],
+      "whenNotToUse": [
+        "For skeletal meshes or any mesh that deforms (Nanite does not support skeletal animation)",
+        "For translucent or heavily masked materials where Nanite support is limited",
+        "When targeting mobile, Switch, or older hardware without Nanite support",
+        "For meshes that need extensive World Position Offset unless using UE5.4+ programmable rasterizer",
+        "When your scene is already simple enough that traditional LODs have negligible cost"
+      ],
+      "relatedClasses": [
+        "UStaticMesh",
+        "UStaticMeshComponent",
+        "UInstancedStaticMeshComponent",
+        "UHierarchicalInstancedStaticMeshComponent",
+        "FNaniteRasterizer"
+      ],
+      "commonMistakes": [
+        "Enabling Nanite on meshes with translucent or two-sided materials without checking compatibility",
+        "Expecting Nanite to work on skeletal meshes — it only supports static meshes",
+        "Forgetting to enable Nanite per-mesh in the Static Mesh editor (it is not on by default)",
+        "Using Nanite on extremely simple meshes where it adds overhead without benefit",
+        "Not generating Nanite data after importing a mesh — the mesh must be rebuilt with Nanite enabled"
+      ],
+      "keyPoints": [
+        "Enables film-quality assets (millions of triangles) with near-zero performance impact",
+        "Automatically handles LOD — no need to manually create LOD levels for Nanite meshes",
+        "Enable per-mesh: Static Mesh > Enable Nanite Support",
+        "Works with: static meshes, instanced static meshes, landscape (UE5.4+)",
+        "Does NOT work with: skeletal meshes, translucent materials, masked/two-sided materials (limited support in 5.4+)",
+        "Uses a visibility buffer and software rasterizer — different from traditional GPU rasterization",
+        "Programmable rasterizer in UE5.4+ for masked materials and world position offset"
+      ],
+      "tags": ["nanite", "virtualized geometry", "lod", "static mesh", "triangle", "rasterizer"]
+    },
+    {
+      "id": "ref_render_002",
+      "title": "Lumen Global Illumination & Reflections",
+      "description": "Lumen is UE5's dynamic global illumination and reflections system. It provides real-time GI without baked lightmaps, reacting instantly to light and geometry changes.",
+      "whatItIs": "Lumen is UE5's fully dynamic global illumination and reflection system that uses a combination of screen-space traces, mesh distance fields, and optional hardware ray tracing to compute realistic indirect lighting and reflections in real time.",
+      "whenToUse": [
+        "When your scene has dynamic lighting that changes at runtime (time-of-day, destructible environments)",
+        "When you want realistic indirect lighting and reflections without baking lightmaps",
+        "For next-gen visual quality on PC and current-gen consoles",
+        "When rapid iteration on lighting is needed — no bake times"
+      ],
+      "whenNotToUse": [
+        "When targeting mobile platforms or low-end hardware that cannot handle the performance cost",
+        "For VR projects where maintaining high frame rates is critical and Lumen is too expensive",
+        "When a fully static scene can use baked lightmaps for higher quality at lower runtime cost",
+        "For stylized games where screen-space artifacts from Lumen are unacceptable"
+      ],
+      "relatedClasses": [
+        "UDirectionalLightComponent",
+        "UPointLightComponent",
+        "USpotLightComponent",
+        "USkyLightComponent",
+        "UPostProcessComponent",
+        "FLumenSceneData"
+      ],
+      "commonMistakes": [
+        "Using Static or Stationary lights with Lumen — Lumen works best with Movable lights",
+        "Not generating Mesh Distance Fields for meshes, causing Lumen to have missing GI in those areas",
+        "Setting Lumen quality too high for the target hardware, tanking frame rate",
+        "Expecting Lumen to work well with very small or thin geometry that distance fields cannot represent",
+        "Mixing baked and Lumen lighting incorrectly, causing double illumination or inconsistent results"
+      ],
+      "keyPoints": [
+        "Software ray tracing: uses screen traces + mesh distance fields. No RT hardware required.",
+        "Hardware ray tracing: optional, higher quality. Requires RTX/DXR GPU.",
+        "No baking required — fully dynamic. Light changes propagate in real-time.",
+        "Lumen Scene: built from mesh distance fields and surface cache. Needs accurate distance field meshes.",
+        "Settings: Project Settings > Rendering > Global Illumination > Lumen",
+        "Performance: screen traces are cheap, distance field traces are moderate, hardware RT is most expensive",
+        "Fallbacks: screen space GI for mobile/low-end, or baked lightmaps for static scenes"
+      ],
+      "tags": ["lumen", "global illumination", "gi", "reflections", "ray tracing", "dynamic lighting"]
+    },
+    {
+      "id": "ref_render_003",
+      "title": "Material System Basics",
+      "description": "UE5's material system is node-based. Materials define how surfaces look by combining textures, math, and parameters into a shader. Material Instances allow runtime parameter changes without recompilation.",
+      "whatItIs": "The UE5 Material System is a node-based shader authoring framework where artists and developers create surface appearances by connecting expression nodes in a visual graph, which the engine compiles into GPU shaders. Material Instances provide lightweight, parameter-driven variants without recompiling the base shader.",
+      "whenToUse": [
+        "Whenever you need to define the visual appearance of any surface in your game",
+        "Use Material Instances (Dynamic) when you need to change material parameters at runtime (e.g., hit flash, color changes)",
+        "Use Material Instances (Constant) when you need editor-time variants sharing the same base material",
+        "Use Material Functions when you have reusable shader logic needed across multiple materials"
+      ],
+      "whenNotToUse": [
+        "Do not create a new base Material when a Material Instance of an existing one would suffice",
+        "Avoid Translucent blend mode when Opaque or Masked would work — translucency is significantly more expensive",
+        "Do not use Material parameter bindings polled every frame when event-driven updates would work",
+        "Avoid complex material graphs on mobile when simplified versions are needed for performance"
+      ],
+      "relatedClasses": [
+        "UMaterial",
+        "UMaterialInstance",
+        "UMaterialInstanceDynamic",
+        "UMaterialInstanceConstant",
+        "UMaterialFunction",
+        "UMaterialExpression",
+        "UMaterialParameterCollection"
+      ],
+      "commonMistakes": [
+        "Creating too many base Materials instead of using Material Instances, causing excessive shader compilation",
+        "Using Translucent blend mode for objects that only need simple alpha testing (Masked is cheaper)",
+        "Forgetting to create a Material Instance Dynamic (MID) and trying to set parameters directly on a shared Material Instance",
+        "Not using Material Parameter Collections when multiple materials need to share the same global parameter",
+        "Over-complicating material graphs with unnecessary nodes, increasing shader instruction count and compile times"
+      ],
+      "keyPoints": [
+        "Material: the master shader graph. Compiling creates GPU shader permutations.",
+        "Material Instance (Dynamic): runtime-changeable parameters (colors, scalars, textures). Cheap to create.",
+        "Material Instance (Constant): editor-configurable parameters. Shared across actors. No runtime creation cost.",
+        "Material Domains: Surface (default), Deferred Decal, Light Function, Post Process, UI",
+        "Blend Modes: Opaque (fastest), Masked (alpha test), Translucent (alpha blend, most expensive)",
+        "Shading Models: Default Lit, Unlit, Subsurface, Clear Coat, Cloth, Eye, Hair",
+        "Material Functions: reusable node graphs shared between materials"
+      ],
+      "tags": ["material", "material instance", "shader", "texture", "blend mode", "shading model"]
+    },
+    {
+      "id": "ref_render_004",
+      "title": "Lighting Types & Setup",
+      "description": "UE5 offers multiple light types for different scenarios. With Lumen, most lights can be fully dynamic.",
+      "whatItIs": "UE5 provides several light actor types (Directional, Point, Spot, Rect, Sky) each with configurable Mobility (Static, Stationary, Movable) that determines whether the light is baked, partially baked, or fully dynamic at runtime.",
+      "whenToUse": [
+        "Directional Light for outdoor sun/moon illumination in open environments",
+        "Point Lights for localized omnidirectional sources like lamps, torches, or explosions",
+        "Spot Lights for focused cone-shaped illumination like flashlights or stage lighting",
+        "Rect Lights for realistic soft area lighting from windows, monitors, or light panels",
+        "Sky Light to capture ambient environment lighting from the sky or a cubemap",
+        "Movable mobility when using Lumen for fully dynamic global illumination"
+      ],
+      "whenNotToUse": [
+        "Do not use multiple Directional Lights as primary sun — one is sufficient for outdoor scenes",
+        "Avoid Movable lights on projects targeting mobile or low-end hardware without Lumen",
+        "Do not use Rect Lights excessively — they are more expensive than Point or Spot Lights",
+        "Avoid Static mobility if your scene requires runtime lighting changes"
+      ],
+      "relatedClasses": [
+        "UDirectionalLightComponent",
+        "UPointLightComponent",
+        "USpotLightComponent",
+        "URectLightComponent",
+        "USkyLightComponent",
+        "ALight",
+        "ULightComponentBase"
+      ],
+      "commonMistakes": [
+        "Mixing Static and Movable lights in a Lumen scene, causing inconsistent lighting behavior",
+        "Placing too many overlapping dynamic lights in one area, exceeding the per-object light limit and causing popping",
+        "Forgetting to set the Sky Light to Movable when using Lumen — it must recapture dynamically",
+        "Not enabling 'Cast Shadows' on lights that should produce shadows",
+        "Using Stationary mobility with Lumen — Lumen is designed for Movable lights"
+      ],
+      "keyPoints": [
+        "Directional Light: sun/moon. Infinite distance, parallel rays. One primary directional light for outdoor scenes.",
+        "Point Light: omnidirectional from a single point. Use for lamps, fires, explosions.",
+        "Spot Light: cone of light. Use for flashlights, street lights, stage lights.",
+        "Rect Light: rectangular area light. Realistic soft shadows for windows, screens, panels.",
+        "Sky Light: ambient light from the sky. Captures the sky or uses a cubemap.",
+        "Mobility: Static (baked only), Stationary (baked + dynamic shadows), Movable (fully dynamic, works with Lumen)",
+        "With Lumen: use Movable lights for everything. No need for baking."
+      ],
+      "tags": ["lighting", "directional", "point", "spot", "rect", "sky light", "mobility", "shadow"]
+    },
+    {
+      "id": "ref_render_005",
+      "title": "Post-Process Effects",
+      "description": "Post-process effects are applied after the scene is rendered. Controlled via Post Process Volumes or Camera settings.",
+      "whatItIs": "Post-Process Effects are full-screen image effects applied after the main scene render pass. They are configured through Post Process Volumes placed in the level or through Camera Component settings, and include bloom, exposure, color grading, depth of field, motion blur, and custom material-based effects.",
+      "whenToUse": [
+        "When you need cinematic visual effects like bloom, depth of field, or motion blur",
+        "For color grading and art direction using LUTs, temperature, and saturation adjustments",
+        "When creating custom full-screen effects using Post Process Materials (outlines, night vision, etc.)",
+        "To control auto-exposure behavior for indoor/outdoor transitions"
+      ],
+      "whenNotToUse": [
+        "Do not stack many heavy post-process effects on mobile or low-end platforms",
+        "Avoid using motion blur in competitive multiplayer games where visual clarity is critical",
+        "Do not rely on screen-space Ambient Occlusion when Lumen already provides superior AO",
+        "Avoid excessive bloom that washes out the scene and reduces readability"
+      ],
+      "relatedClasses": [
+        "APostProcessVolume",
+        "UPostProcessComponent",
+        "FPostProcessSettings",
+        "UCameraComponent",
+        "APlayerCameraManager",
+        "UMaterial"
+      ],
+      "commonMistakes": [
+        "Forgetting to set 'Infinite Extent (Unbound)' on a Post Process Volume meant to be global",
+        "Stacking multiple Post Process Volumes with conflicting settings and not understanding blend priority",
+        "Using auto-exposure without setting Min/Max Brightness, causing extreme brightness swings in dark/bright areas",
+        "Creating custom Post Process Materials in the wrong domain — must set Material Domain to 'Post Process'",
+        "Overusing heavy effects like Depth of Field and Motion Blur together, significantly impacting performance"
+      ],
+      "keyPoints": [
+        "Post Process Volume: defines a region where effects apply. Set Infinite Extent for global effects.",
+        "Bloom: glow around bright areas. Control with Intensity and Threshold.",
+        "Exposure / Auto Exposure: controls how the camera adapts to brightness. Min/Max Brightness, Speed.",
+        "Color Grading: LUT, temperature, saturation, contrast. Use for art direction.",
+        "Depth of Field: blurs near/far objects. Cinematic DOF for film look.",
+        "Motion Blur: per-object and camera motion blur.",
+        "Ambient Occlusion: screen-space darkening in crevices. Lumen provides its own AO.",
+        "Custom Post Process Materials: create your own effects with Material Domain = Post Process."
+      ],
+      "tags": ["post process", "bloom", "exposure", "color grading", "dof", "motion blur", "ambient occlusion"]
+    },
+    {
+      "id": "ref_render_006",
+      "title": "Virtual Shadow Maps (VSM)",
+      "description": "Virtual Shadow Maps are UE5's shadow system designed to work with Nanite. They provide high-resolution shadows for the entire scene using a virtual page table approach.",
+      "whatItIs": "Virtual Shadow Maps (VSM) is UE5's next-generation shadow mapping system that uses a clipmap-based virtual page table to provide pixel-accurate shadows across the entire scene, with resolution that adapts based on distance from the camera and efficient caching for static geometry.",
+      "whenToUse": [
+        "When using Nanite — VSM is designed to pair with Nanite for accurate shadows on detailed geometry",
+        "For large open worlds where traditional cascaded shadow maps have resolution issues",
+        "When you need high-quality shadows at all distances without manually tuning cascade settings",
+        "In mostly static scenes where shadow page caching provides significant performance gains"
+      ],
+      "whenNotToUse": [
+        "When targeting mobile or low-end hardware that cannot afford the memory overhead",
+        "In scenes with many rapidly moving dynamic objects that constantly invalidate the shadow cache",
+        "When traditional shadow maps already provide acceptable quality for your project",
+        "For VR projects where the additional GPU cost may push frame times over budget"
+      ],
+      "relatedClasses": [
+        "UDirectionalLightComponent",
+        "ULocalLightComponent",
+        "FVirtualShadowMapArray",
+        "FProjectedShadowInfo",
+        "UShadowMapRenderingComponent"
+      ],
+      "commonMistakes": [
+        "Not enabling VSM in Project Settings and expecting Nanite meshes to cast detailed shadows automatically",
+        "Having too many dynamic objects that invalidate shadow cache pages every frame, negating the caching benefit",
+        "Forgetting that VSM requires more video memory than traditional shadow maps — monitor VRAM usage",
+        "Expecting VSM to work efficiently without Nanite — while it works without Nanite, the best performance pairing is with Nanite",
+        "Not adjusting the virtual shadow map resolution for the target platform, causing performance issues"
+      ],
+      "keyPoints": [
+        "Replaces traditional cascaded shadow maps for most use cases",
+        "Resolution adapts based on distance from camera — close objects get detailed shadows",
+        "Works with Nanite geometry natively — shadows match the detailed mesh exactly",
+        "Cached: shadow pages are only re-rendered when something changes (light/object moves)",
+        "Enable: Project Settings > Rendering > Shadow Map Method = Virtual Shadow Maps",
+        "Performance: efficient for mostly static scenes. Dynamic objects invalidate cached pages.",
+        "One Shadow Map covers all lights (unlike CSM which is per-light)"
+      ],
+      "tags": ["virtual shadow maps", "vsm", "shadows", "nanite", "cascaded", "cache"]
+    }
+  ]
+}

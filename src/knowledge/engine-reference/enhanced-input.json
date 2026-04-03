@@ -1,0 +1,228 @@
+{
+  "category": "enhanced-input",
+  "displayName": "Enhanced Input System",
+  "description": "UE5 Enhanced Input System: Input Actions, Input Mapping Contexts, Triggers, Modifiers, and runtime input management",
+  "entries": [
+    {
+      "id": "ref_ei_001",
+      "title": "Enhanced Input Architecture",
+      "description": "The Enhanced Input System replaces the legacy input system in UE5. It separates input definitions (Input Actions) from key bindings (Input Mapping Contexts), allowing flexible remapping and complex input behaviors.",
+      "whatItIs": "The Enhanced Input System is UE5's modern input framework that decouples what an input does (Input Actions) from which physical keys trigger it (Input Mapping Contexts). It supports complex input behaviors like chords, holds, and combos through a composable Trigger and Modifier pipeline.",
+      "whenToUse": [
+        "All new UE5 projects — it is the default and recommended input system",
+        "When you need runtime key remapping or multiple input context switching (on-foot vs. vehicle)",
+        "Implementing complex input behaviors like hold-to-charge, double-tap, or chorded actions",
+        "Supporting multiple input devices (keyboard, gamepad, touch) with per-device mappings",
+        "Building games that need per-player input context stacks in local multiplayer"
+      ],
+      "whenNotToUse": [
+        "Maintaining legacy UE4 projects that already use the old input system and cannot migrate",
+        "Extremely simple single-button prototypes where the setup overhead is not justified (though it is still recommended)",
+        "Third-party plugins that require the legacy input system for compatibility"
+      ],
+      "relatedClasses": [
+        "UEnhancedInputComponent",
+        "UEnhancedInputLocalPlayerSubsystem",
+        "UInputAction",
+        "UInputMappingContext",
+        "UInputModifier",
+        "UInputTrigger",
+        "UEnhancedPlayerInput"
+      ],
+      "commonMistakes": [
+        "Forgetting to set Default Player Input Class to EnhancedPlayerInput in Project Settings",
+        "Not adding a mapping context at runtime — actions will never fire without an active context",
+        "Mixing legacy input bindings with Enhanced Input, causing conflicts and confusion",
+        "Forgetting to add the EnhancedInput plugin to the project's .uproject and Build.cs",
+        "Not understanding the difference between Input Actions (what) and Mapping Contexts (which keys)"
+      ],
+      "keyPoints": [
+        "Input Action (UInputAction): defines WHAT the input does. Has a value type: bool, float (1D), Vector2D (2D), Vector (3D)",
+        "Input Mapping Context (UInputMappingContext): defines WHICH keys trigger which actions. Multiple contexts can be active with priorities",
+        "Triggers: define WHEN the action fires (pressed, held, tapped, released, chorded)",
+        "Modifiers: transform the input value (negate, swizzle, dead zone, scale, smooth)",
+        "Enhanced Input Local Player Subsystem: manages active mapping contexts per player",
+        "Enable in Project Settings > Input > Default Input Class = EnhancedPlayerInput"
+      ],
+      "blueprintExample": "Blueprint Setup (Step by Step):\n1. Right-click Content Browser → Input → Input Action → name it 'IA_Jump', 'IA_Move', etc.\n2. Open each Input Action and set the Value Type (Bool for jump, Axis2D for movement, Axis2D for look)\n3. Right-click Content Browser → Input → Input Mapping Context → name it 'IMC_Default'\n4. Open the Mapping Context → click '+' to add mappings:\n   - Add IA_Jump → set key to Spacebar\n   - Add IA_Move → set key to W, then add Modifiers: 'Swizzle Input Axis Values' + 'Negate' as needed for WASD\n   - Add IA_Look → set key to Mouse XY 2D-Axis\n5. In your Character Blueprint's Event BeginPlay:\n   - Get Controller → Cast to Player Controller → Get Enhanced Input Local Player Subsystem\n   - Call 'Add Mapping Context' with your IMC_Default and priority 0\n6. Use 'EnhancedInputAction IA_Jump' event node to respond to input in Event Graph",
+      "tags": ["enhanced input", "input action", "mapping context", "architecture", "overview"]
+    },
+    {
+      "id": "ref_ei_002",
+      "title": "Input Actions & Value Types",
+      "description": "An Input Action defines a gameplay action (Jump, Move, Look) with a specific value type that determines what data the action provides.",
+      "whatItIs": "A UInputAction is a data asset that represents a single gameplay input (e.g., Jump, Move, Look). Each action has a value type (bool, float, Vector2D, or Vector) that determines the shape of the data delivered to your bound callback function.",
+      "whenToUse": [
+        "Defining any discrete player action like jumping, firing, interacting, or crouching (bool)",
+        "Representing single-axis analog inputs like throttle, zoom, or scroll (Axis1D float)",
+        "Handling two-axis inputs like WASD movement or mouse/stick look (Axis2D Vector2D)",
+        "Supporting VR motion controllers or 3D spatial input devices (Axis3D Vector)"
+      ],
+      "whenNotToUse": [
+        "System-level inputs handled by the engine (e.g., console commands, editor shortcuts)",
+        "Raw hardware polling where you need direct device access outside the input pipeline",
+        "When a gameplay event is not driven by player input — use gameplay events or delegates instead"
+      ],
+      "relatedClasses": [
+        "UInputAction",
+        "FInputActionValue",
+        "UEnhancedInputComponent",
+        "ETriggerEvent",
+        "UPlayerInput"
+      ],
+      "commonMistakes": [
+        "Choosing the wrong value type — using bool for movement when you need Axis2D for analog direction",
+        "Binding to ETriggerEvent::Triggered for a hold action when Started or Ongoing is more appropriate",
+        "Forgetting to call Value.Get<T>() with the correct template type matching the action's value type",
+        "Creating separate actions for W/A/S/D keys instead of a single Axis2D Move action with modifiers",
+        "Not setting up the action asset in the editor — the value type defaults to bool if not configured"
+      ],
+      "keyPoints": [
+        "Digital (bool): on/off actions like Jump, Fire, Interact",
+        "Axis1D (float): single-axis like throttle, zoom",
+        "Axis2D (FVector2D): two-axis like WASD movement (X=right/left, Y=forward/back) or mouse look",
+        "Axis3D (FVector): three-axis for VR controllers or 3D input",
+        "The value type determines the parameter in your bound function",
+        "Actions fire Trigger Events: Started, Ongoing, Triggered, Completed, Canceled"
+      ],
+      "codeExample": "// Binding different value types\nvoid AMyChar::SetupPlayerInputComponent(UInputComponent* PIC) {\n    UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PIC);\n    \n    // Bool action (jump)\n    EIC->BindAction(JumpAction, ETriggerEvent::Started, this, &AMyChar::OnJump);\n    \n    // Axis2D action (movement)\n    EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMyChar::OnMove);\n}\n\nvoid AMyChar::OnJump(const FInputActionValue& Value) {\n    bool bPressed = Value.Get<bool>();\n    Jump();\n}\n\nvoid AMyChar::OnMove(const FInputActionValue& Value) {\n    FVector2D Axis = Value.Get<FVector2D>();\n    AddMovementInput(GetActorForwardVector(), Axis.Y);\n    AddMovementInput(GetActorRightVector(), Axis.X);\n}",
+      "blueprintExample": "Blueprint Input Binding:\n1. In your Character Blueprint Event Graph, right-click and search for 'EnhancedInputAction'\n2. Select your Input Action (e.g. IA_Move) — this creates an event node with Triggered, Started, Completed pins\n3. For movement (Axis2D): drag from 'Action Value' → 'Get Action Value (Vector2D)' → split the pin to get X and Y\n4. Use 'Add Movement Input' node: plug 'Get Actor Forward Vector' into Direction, Y value into Scale\n5. Add another 'Add Movement Input': plug 'Get Actor Right Vector' into Direction, X value into Scale\n6. For jump (Bool): from the 'Started' pin → call 'Jump' function\n7. For look (Axis2D): use 'Add Controller Yaw Input' (X) and 'Add Controller Pitch Input' (Y × -1)",
+      "tags": ["input action", "value type", "bool", "axis", "vector2d", "binding"]
+    },
+    {
+      "id": "ref_ei_003",
+      "title": "Input Mapping Contexts & Priority",
+      "description": "Input Mapping Contexts bind keys/buttons to Input Actions. Multiple contexts can be active simultaneously, with priority determining which context wins when keys overlap.",
+      "whatItIs": "A UInputMappingContext is a data asset that maps physical keys, buttons, and axes to Input Actions. Multiple contexts can be active on a player at once, organized by priority, allowing runtime switching between control schemes (e.g., on-foot vs. vehicle vs. menu).",
+      "whenToUse": [
+        "Defining the default control scheme for your character (on-foot movement, camera, actions)",
+        "Switching input schemes when the player enters a vehicle, opens a menu, or changes state",
+        "Layering contextual inputs on top of base controls (e.g., aiming adds zoom controls)",
+        "Supporting multiple control schemes for accessibility or player preference",
+        "Local multiplayer where each player needs independent input context stacks"
+      ],
+      "whenNotToUse": [
+        "When a single global input mapping covers all your needs and will never change at runtime",
+        "For AI-controlled characters that do not receive player input",
+        "When input should be blocked entirely — disable the input component or remove all contexts"
+      ],
+      "relatedClasses": [
+        "UInputMappingContext",
+        "UEnhancedInputLocalPlayerSubsystem",
+        "UEnhancedInputComponent",
+        "ULocalPlayer",
+        "APlayerController"
+      ],
+      "commonMistakes": [
+        "Not removing the old mapping context when swapping (e.g., leaving on-foot active while in a vehicle)",
+        "Using the wrong priority value — higher priority contexts consume input first, starving lower ones",
+        "Adding mapping contexts in the constructor instead of BeginPlay, before the subsystem is ready",
+        "Forgetting that mapping contexts are per-player — each local player needs their own setup",
+        "Duplicating Input Action references across contexts instead of reusing the same action asset"
+      ],
+      "keyPoints": [
+        "Add/remove mapping contexts at runtime via UEnhancedInputLocalPlayerSubsystem",
+        "Priority: higher number = higher priority. Higher priority contexts consume input first",
+        "Use case: switch between 'OnFoot' and 'InVehicle' contexts when entering a car",
+        "Each mapping can have its own Modifiers and Triggers per key binding",
+        "The same Input Action can be in multiple contexts with different key bindings",
+        "Contexts are per-player: each local player has their own active context stack"
+      ],
+      "codeExample": "// Adding and swapping mapping contexts\nvoid AMyChar::BeginPlay() {\n    if (auto* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer())) {\n        Subsystem->AddMappingContext(OnFootContext, 0);  // priority 0\n    }\n}\n\nvoid AMyChar::EnterVehicle() {\n    if (auto* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer())) {\n        Subsystem->RemoveMappingContext(OnFootContext);\n        Subsystem->AddMappingContext(VehicleContext, 0);\n    }\n}",
+      "tags": ["mapping context", "priority", "add", "remove", "swap", "subsystem"]
+    },
+    {
+      "id": "ref_ei_004",
+      "title": "Triggers & Trigger Events",
+      "description": "Triggers define the conditions under which an Input Action fires. They control timing: press, release, hold, tap, chord, combo, etc.",
+      "whatItIs": "Triggers are modular objects attached to Input Action mappings that define when an action should fire. They evaluate each frame and produce trigger events (Started, Ongoing, Triggered, Completed, Canceled) that your code binds to, enabling complex timing behaviors like holds, taps, and chords.",
+      "whenToUse": [
+        "Implementing press-once actions like jump or interact (Pressed trigger)",
+        "Building charge-up mechanics where holding a key accumulates power (Hold trigger)",
+        "Detecting quick taps vs. long presses for different behaviors (Tap trigger)",
+        "Requiring modifier keys like Shift+E for alternate interactions (Chorded Action trigger)",
+        "Creating fighting-game-style input sequences (Combo trigger)"
+      ],
+      "whenNotToUse": [
+        "Continuous movement input that should fire every frame the key is held — use no trigger (default behavior)",
+        "When you only need a simple is-key-down check and trigger events add unnecessary complexity",
+        "For non-input-driven game events — use timers, gameplay events, or delegates instead"
+      ],
+      "relatedClasses": [
+        "UInputTrigger",
+        "UInputTriggerPressed",
+        "UInputTriggerReleased",
+        "UInputTriggerHold",
+        "UInputTriggerTap",
+        "UInputTriggerChordAction",
+        "UInputTriggerCombo",
+        "ETriggerEvent"
+      ],
+      "commonMistakes": [
+        "Binding to ETriggerEvent::Triggered for a hold action and expecting it to fire immediately — it fires only after the hold duration is met",
+        "Not understanding the difference between Started (trigger begins) and Triggered (trigger condition fully met)",
+        "Stacking conflicting triggers on the same mapping (e.g., Tap and Hold without proper thresholds)",
+        "Forgetting that no trigger assigned means the action fires on any non-zero input (every frame the key is held)",
+        "Using Chorded Action trigger without ensuring the chord key's action is also bound and active"
+      ],
+      "keyPoints": [
+        "Default (no trigger): fires on any non-zero input value (key is down)",
+        "Pressed: fires once when the key goes from released to pressed",
+        "Released: fires once when the key goes from pressed to released",
+        "Hold: fires after the key is held for a specified duration",
+        "Hold And Release: fires when released AFTER holding long enough",
+        "Tap: fires when pressed and released within a short time window",
+        "Chorded Action: requires another Input Action to be active simultaneously (modifier key)",
+        "Combo: requires a sequence of other actions in order (fighting game inputs)"
+      ],
+      "codeExample": "// Trigger events and their meanings:\n// ETriggerEvent::Started    — first frame the trigger condition begins activating\n// ETriggerEvent::Ongoing    — trigger is still being evaluated (e.g., during hold buildup)\n// ETriggerEvent::Triggered  — the trigger condition is fully met (the main event)\n// ETriggerEvent::Completed  — the trigger finished successfully (e.g., key released after hold)\n// ETriggerEvent::Canceled   — the trigger was interrupted before completing\n\n// Example: bind to Triggered for the main action\nEIC->BindAction(FireAction, ETriggerEvent::Triggered, this, &AMyChar::OnFire);\n\n// Example: hold action — Started when hold begins, Triggered when hold completes\nEIC->BindAction(ChargeAction, ETriggerEvent::Started, this, &AMyChar::OnChargeStart);\nEIC->BindAction(ChargeAction, ETriggerEvent::Triggered, this, &AMyChar::OnChargeComplete);",
+      "tags": ["trigger", "pressed", "released", "hold", "tap", "chorded", "combo", "trigger event"]
+    },
+    {
+      "id": "ref_ei_005",
+      "title": "Modifiers",
+      "description": "Modifiers transform the raw input value before it reaches your code. They are applied in order on each mapping.",
+      "whatItIs": "Input Modifiers are processing steps applied to raw input values in sequence before they reach your bound callback. They handle common transformations like dead zones, axis negation, sensitivity scaling, and smoothing, eliminating the need to write boilerplate input processing code.",
+      "whenToUse": [
+        "Filtering analog stick noise with Dead Zone modifiers to prevent drift",
+        "Negating axis values so the S key produces negative forward input for Axis2D movement",
+        "Swizzling axes to remap controller stick X/Y to match your movement coordinate system",
+        "Adjusting sensitivity with Scalar modifiers for look speed or zoom sensitivity",
+        "Applying response curves for non-linear stick input (exponential ramp for precise aiming)"
+      ],
+      "whenNotToUse": [
+        "When the raw input value is already in the correct format and range",
+        "For gameplay logic transformations (e.g., slow movement while aiming) — handle that in your character code",
+        "When custom processing beyond built-in modifiers is needed — create a custom UInputModifier subclass instead of chaining workarounds"
+      ],
+      "relatedClasses": [
+        "UInputModifier",
+        "UInputModifierDeadZone",
+        "UInputModifierNegate",
+        "UInputModifierSwizzleAxis",
+        "UInputModifierScalar",
+        "UInputModifierSmooth",
+        "UInputModifierFOVScaling",
+        "UInputModifierResponseCurveExponential"
+      ],
+      "commonMistakes": [
+        "Applying modifiers in the wrong order — Dead Zone should come before Scalar to avoid amplifying noise",
+        "Forgetting to add Negate modifier on the S and A keys for WASD movement, resulting in same-direction input",
+        "Not adding Swizzle on the S/W keys to convert the 1D input to the correct axis of the 2D action",
+        "Setting dead zone values too high, making the controller feel unresponsive, or too low, causing drift",
+        "Applying FOV Scaling without understanding it changes sensitivity based on camera field of view"
+      ],
+      "keyPoints": [
+        "Dead Zone: ignores input below a threshold (essential for analog sticks)",
+        "Negate: inverts the value (use to make S key produce negative forward input)",
+        "Swizzle Input Axis Values: remap axes (e.g., swap X and Y)",
+        "Scalar: multiply the input by a constant (sensitivity)",
+        "Smooth: apply smoothing/interpolation over time",
+        "FOV Scaling: adjust sensitivity based on camera FOV (for aim-down-sights)",
+        "Response Curve: apply a custom curve to the input (exponential ramp for fine control)",
+        "Multiple modifiers chain: Dead Zone → Negate → Scalar"
+      ],
+      "tags": ["modifier", "dead zone", "negate", "swizzle", "scalar", "smooth", "sensitivity"]
+    }
+  ]
+}

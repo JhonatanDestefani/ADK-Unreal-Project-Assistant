@@ -1,0 +1,109 @@
+{
+  "category": "components",
+  "displayName": "Components & Composition",
+  "description": "UActorComponent, USceneComponent, and the composition model — when to use components vs inheritance",
+  "entries": [
+    {
+      "id": "ref_comp_001",
+      "title": "Components vs Inheritance: When to Use Each",
+      "description": "Unreal favors composition over inheritance. Instead of creating deep class hierarchies, you attach reusable Components to Actors. Understanding when to create a component vs a new Actor subclass is one of the most important architectural decisions in UE5.",
+      "whatItIs": "Components are modular pieces of functionality that you add to Actors. An Actor is a container — Components give it behavior, visuals, collision, and logic. This is the 'composition over inheritance' pattern that UE5 is built around.",
+      "whenToUse": [
+        "When the behavior needs to be reused across different Actor types (e.g., a health system used by players, enemies, and destructibles)",
+        "When you want to add or remove functionality at runtime (e.g., attaching a shield component when the player picks up armor)",
+        "When the logic doesn't need its own world transform or collision — use UActorComponent",
+        "When the logic needs a position in the world (attachable to sockets, has transform) — use USceneComponent",
+        "When designers need to mix and match behaviors on Actors via Blueprints without code changes"
+      ],
+      "whenNotToUse": [
+        "When the behavior IS the entity — a player character should subclass ACharacter, not be a component on a generic AActor",
+        "When you need to override core Actor lifecycle behavior like Tick priority or replication rules — that's inheritance",
+        "When the 'component' would need to spawn other Actors or manage world state — consider a Subsystem or standalone Actor instead",
+        "When you only have one Actor type that will ever use this logic — a component adds indirection for no benefit"
+      ],
+      "relatedClasses": [
+        "UActorComponent",
+        "USceneComponent",
+        "AActor",
+        "UStaticMeshComponent",
+        "USkeletalMeshComponent",
+        "UCapsuleComponent",
+        "USpringArmComponent",
+        "UCameraComponent",
+        "UWidgetComponent",
+        "UChildActorComponent"
+      ],
+      "commonMistakes": [
+        "Creating a deep class hierarchy (AEnemy -> ARangedEnemy -> ARangedEnemyWithShield) instead of using components (AEnemy + UShieldComponent + URangedAttackComponent)",
+        "Using USceneComponent when you don't need a transform — UActorComponent is lighter and signals intent better",
+        "Forgetting to call RegisterComponent() when creating components outside of the constructor",
+        "Not using CreateDefaultSubobject<T>() in constructors — using NewObject<T>() for components in constructors won't register them properly",
+        "Putting component logic in the owning Actor instead of in the component itself, defeating the purpose of composition"
+      ],
+      "keyPoints": [
+        "UActorComponent: no transform, no attachment. Pure logic (health system, inventory, ability manager).",
+        "USceneComponent: has transform, can attach to sockets and other components. Base for all visible/spatial components.",
+        "CreateDefaultSubobject<T>() in constructor to create default components that always exist on the Actor.",
+        "RegisterComponent() + AddInstanceComponent() when creating components at runtime (outside constructor).",
+        "Components can Tick independently — each has its own PrimaryComponentTick settings.",
+        "One Actor can have many components. Components can reference each other via GetOwner()->FindComponentByClass<T>().",
+        "Think of Actors as 'what it is' (enemy, pickup, door) and Components as 'what it can do' (take damage, be interacted with, move)."
+      ],
+      "lifecycle": "Constructor (CreateDefaultSubobject) -> OnRegister -> InitializeComponent (bWantsInitializeComponent=true) -> BeginPlay -> TickComponent -> EndPlay -> OnUnregister -> DestroyComponent",
+      "codeExample": "// A reusable health component — attach to any Actor\nUCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))\nclass UHealthComponent : public UActorComponent\n{\n    GENERATED_BODY()\npublic:\n    UHealthComponent();\n\n    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = \"Health\")\n    float MaxHealth = 100.f;\n\n    UPROPERTY(ReplicatedUsing=OnRep_CurrentHealth, BlueprintReadOnly, Category = \"Health\")\n    float CurrentHealth;\n\n    UFUNCTION(BlueprintCallable)\n    void TakeDamage(float DamageAmount);\n\n    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, NewHealth, float, Delta);\n\n    UPROPERTY(BlueprintAssignable)\n    FOnHealthChanged OnHealthChanged;\n\nprotected:\n    virtual void BeginPlay() override;\n\n    UFUNCTION()\n    void OnRep_CurrentHealth();\n};\n\n// Using the component in an Actor\nAMyEnemy::AMyEnemy()\n{\n    HealthComp = CreateDefaultSubobject<UHealthComponent>(TEXT(\"HealthComp\"));\n}\n\n// Creating a component at runtime\nUHealthComponent* Health = NewObject<UHealthComponent>(this, UHealthComponent::StaticClass());\nHealth->RegisterComponent();\nAddInstanceComponent(Health);",
+      "tags": ["component", "actor component", "scene component", "composition", "inheritance", "architecture", "design pattern"]
+    },
+    {
+      "id": "ref_comp_002",
+      "title": "Common Built-in Components",
+      "description": "UE5 ships with dozens of ready-made components. Knowing which ones exist saves you from reinventing the wheel.",
+      "whatItIs": "A quick reference to the most commonly used built-in components in UE5 and what they do.",
+      "whenToUse": [
+        "When setting up a new Actor and choosing which components to add",
+        "When looking for engine-provided functionality before writing custom logic",
+        "When deciding between a built-in component and a custom one"
+      ],
+      "whenNotToUse": [
+        "These are building blocks, not complete systems — you'll usually extend or combine them"
+      ],
+      "relatedClasses": [
+        "UStaticMeshComponent",
+        "USkeletalMeshComponent",
+        "UCapsuleComponent",
+        "UBoxComponent",
+        "USphereComponent",
+        "USpringArmComponent",
+        "UCameraComponent",
+        "UCharacterMovementComponent",
+        "UFloatingPawnMovement",
+        "UProjectileMovementComponent",
+        "URotatingMovementComponent",
+        "UAudioComponent",
+        "USplineComponent",
+        "UWidgetComponent",
+        "UChildActorComponent",
+        "UArrowComponent",
+        "USpotLightComponent",
+        "UPointLightComponent",
+        "UNiagaraComponent"
+      ],
+      "commonMistakes": [
+        "Using UStaticMeshComponent for animated meshes — use USkeletalMeshComponent instead",
+        "Adding UCharacterMovementComponent to a non-ACharacter — it requires ACharacter specifically",
+        "Forgetting that USpringArmComponent needs a child component (usually Camera) attached to it to work",
+        "Using UChildActorComponent for things that should be regular components — ChildActor has replication and lifecycle overhead"
+      ],
+      "keyPoints": [
+        "Visuals: UStaticMeshComponent (static), USkeletalMeshComponent (animated), UNiagaraComponent (particles)",
+        "Collision: UCapsuleComponent (characters), UBoxComponent (triggers), USphereComponent (radius checks)",
+        "Camera: USpringArmComponent (boom/arm) + UCameraComponent (the actual camera)",
+        "Movement: UCharacterMovementComponent (characters), UFloatingPawnMovement (flying), UProjectileMovementComponent (projectiles), URotatingMovementComponent (spinning objects)",
+        "Audio: UAudioComponent for spatialized 3D sound attached to an Actor",
+        "UI: UWidgetComponent to display a UMG widget in 3D world space (health bars, interaction prompts)",
+        "Utility: UArrowComponent (editor visualization), UChildActorComponent (spawn another Actor as a 'component')",
+        "Splines: USplineComponent for paths, roads, and rails"
+      ],
+      "tags": ["component", "static mesh", "skeletal mesh", "capsule", "camera", "spring arm", "movement", "audio", "widget", "built-in"]
+    }
+  ]
+}

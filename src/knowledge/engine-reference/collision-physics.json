@@ -1,0 +1,304 @@
+{
+  "category": "collision-physics",
+  "displayName": "Collision & Physics",
+  "description": "UE5 collision system: line traces, sweep traces, FHitResult, collision channels, collision responses, overlap events, and physics simulation",
+  "entries": [
+    {
+      "id": "ref_col_001",
+      "title": "Line Traces (Raycasts)",
+      "description": "Line traces cast an invisible ray from point A to point B and report what it hits. The most common way to detect objects in the world — used for shooting, interaction, ground detection, and more.",
+      "whatItIs": "A line trace (raycast) is a collision query that fires an infinitely thin ray between two world-space points and returns information about the first (or all) blocking surfaces it intersects. It is the cheapest and most commonly used spatial query in UE5.",
+      "whenToUse": [
+        "Hitscan weapon firing — checking what a bullet would hit instantly",
+        "Interaction systems — detecting what the player is looking at",
+        "Ground detection — checking the surface below a character",
+        "Line-of-sight checks — determining if one actor can see another",
+        "Placement previews — projecting objects onto surfaces for building systems",
+        "Camera obstruction — detecting walls between camera and character"
+      ],
+      "whenNotToUse": [
+        "When you need a wider detection area — use sweep traces instead (e.g., melee attacks, aim assist)",
+        "When you need to detect everything in a volume — use overlap queries instead",
+        "Per-tick traces on hundreds of actors — consider spatial partitioning or collision events instead",
+        "When you need continuous collision detection for fast-moving objects — use physics simulation with CCD enabled"
+      ],
+      "relatedClasses": [
+        "UWorld",
+        "FHitResult",
+        "FCollisionQueryParams",
+        "FCollisionResponseParams",
+        "UKismetSystemLibrary",
+        "ECollisionChannel",
+        "FCollisionShape"
+      ],
+      "commonMistakes": [
+        "Forgetting to call AddIgnoredActor(this) — the trace hits the actor that fired it",
+        "Using ECC_Visibility when you should use ECC_Camera or a custom channel, leading to incorrect hit filtering",
+        "Not checking if GetActor() returns nullptr — BSP geometry and landscape can be hit without an owning actor",
+        "Setting bTraceComplex=true everywhere — per-poly traces are significantly more expensive and rarely needed",
+        "Tracing from the character mesh instead of the camera — causes hits behind walls the player cannot see",
+        "Using LineTraceMulti when you only need the first hit — wastes performance collecting unnecessary results"
+      ],
+      "keyPoints": [
+        "LineTraceSingleByChannel(): traces against a collision channel, returns first hit",
+        "LineTraceSingleByObjectType(): traces against specific object types (WorldStatic, Pawn, etc.)",
+        "LineTraceMultiByChannel(): returns ALL hits along the line, not just the first",
+        "Parameters: Start, End, CollisionChannel, FCollisionQueryParams",
+        "FCollisionQueryParams: AddIgnoredActor(), bTraceComplex (per-poly vs simple collision)",
+        "Common channels: ECC_Visibility (visible objects), ECC_Camera (camera collision), ECC_Pawn (characters)",
+        "Returns bool (hit or not) and fills FHitResult with details",
+        "DrawDebugLine() to visualize traces during development"
+      ],
+      "codeExample": "// Basic line trace from camera\nFHitResult Hit;\nFVector Start = CameraComponent->GetComponentLocation();\nFVector End = Start + CameraComponent->GetForwardVector() * 5000.f;\n\nFCollisionQueryParams Params;\nParams.AddIgnoredActor(this);\nParams.bTraceComplex = true;\n\nbool bHit = GetWorld()->LineTraceSingleByChannel(\n    Hit, Start, End, ECC_Visibility, Params\n);\n\nif (bHit) {\n    AActor* HitActor = Hit.GetActor();\n    FVector HitLocation = Hit.ImpactPoint;\n    FVector HitNormal = Hit.ImpactNormal;\n    UPrimitiveComponent* HitComp = Hit.GetComponent();\n    \n    // Spawn decal at hit point\n    DrawDebugPoint(GetWorld(), HitLocation, 10.f, FColor::Red, false, 5.f);\n}",
+      "tags": ["line trace", "raycast", "linetrace", "hit", "collision", "channel", "visibility"]
+    },
+    {
+      "id": "ref_col_002",
+      "title": "Sweep Traces (Shape Traces)",
+      "description": "Sweep traces move a shape (sphere, box, capsule) from start to end and report what it hits. More forgiving than line traces — great for melee attacks, character detection, and thick raycasts.",
+      "whatItIs": "A sweep trace moves a collision shape (sphere, box, or capsule) along a path from start to end, reporting any surfaces the shape intersects. It functions like a thick raycast that accounts for the spatial volume of the swept shape.",
+      "whenToUse": [
+        "Melee attack detection — sweeping a sphere or box in front of the character",
+        "Aim assist — using a wide sphere trace to be more forgiving than a thin line trace",
+        "Character fit-testing — sweeping a capsule to check if the player can fit through a space or stand up from crouch",
+        "Projectile simulation — tracing a sphere along the projectile path for accurate hit detection",
+        "Ground detection with tolerance — sphere traces handle uneven terrain better than line traces",
+        "Item pickup detection — sweeping a sphere to find nearby interactable objects"
+      ],
+      "whenNotToUse": [
+        "When a simple line trace would suffice — sweeps are more expensive than line traces",
+        "When you need to detect all actors inside a volume without movement — use OverlapMulti instead",
+        "When the shape radius is zero — just use a line trace, it is cheaper",
+        "For very long-range hitscan weapons where precision matters more than forgiveness"
+      ],
+      "relatedClasses": [
+        "UWorld",
+        "FCollisionShape",
+        "FHitResult",
+        "FCollisionQueryParams",
+        "UKismetSystemLibrary",
+        "FQuat",
+        "ECollisionChannel"
+      ],
+      "commonMistakes": [
+        "Using an overly large sweep radius — detects things the player clearly did not aim at, feels unfair",
+        "Forgetting to pass FQuat::Identity for rotation — uninitialized rotation causes unpredictable results",
+        "Not realizing that Start == End is invalid for sweeps — use OverlapMulti for zero-length volume queries",
+        "Using MakeBox with full extents instead of half extents — the box ends up twice the intended size",
+        "Not ignoring the owning actor — the sweep immediately hits the actor performing it",
+        "Sweeping with bTraceComplex on skeletal meshes — extremely expensive and usually unnecessary"
+      ],
+      "keyPoints": [
+        "SweepSingleByChannel(): sweep a shape, return first hit",
+        "SweepMultiByChannel(): sweep a shape, return all hits",
+        "Shape types: FCollisionShape::MakeSphere(Radius), MakeBox(HalfExtent), MakeCapsule(Radius, HalfHeight)",
+        "SphereTraceSingle (KismetSystemLibrary): sweep trace with built-in debug drawing",
+        "Use sphere traces for: melee attacks, aim-assist, picking up items, ground checks",
+        "Use capsule traces for: character fit-testing (can the player fit here?)",
+        "SweepSingleByProfile(): trace against a named collision profile",
+        "More expensive than line traces but more accurate for gameplay interactions"
+      ],
+      "codeExample": "// Sphere sweep for melee attack\nFHitResult Hit;\nFVector Start = GetActorLocation();\nFVector End = Start + GetActorForwardVector() * 200.f;\nFCollisionShape Shape = FCollisionShape::MakeSphere(50.f);\n\nFCollisionQueryParams Params;\nParams.AddIgnoredActor(this);\n\nbool bHit = GetWorld()->SweepSingleByChannel(\n    Hit, Start, End, FQuat::Identity,\n    ECC_Pawn, Shape, Params\n);\n\nif (bHit) {\n    if (ACharacter* Enemy = Cast<ACharacter>(Hit.GetActor())) {\n        UGameplayStatics::ApplyDamage(Enemy, 30.f, GetController(), this, nullptr);\n    }\n}\n\n// Debug visualization\nDrawDebugSphere(GetWorld(), Start, 50.f, 12, FColor::Green, false, 2.f);\nDrawDebugSphere(GetWorld(), End, 50.f, 12, FColor::Red, false, 2.f);",
+      "tags": ["sweep", "sphere trace", "box trace", "capsule trace", "melee", "shape", "collision"]
+    },
+    {
+      "id": "ref_col_003",
+      "title": "FHitResult — Trace Result Data",
+      "description": "FHitResult contains all the information about what a trace or sweep hit: the actor, component, location, normal, bone name, and more.",
+      "whatItIs": "FHitResult is a struct that stores the complete output of a collision query (line trace, sweep, or overlap). It contains the hit location, surface normal, the actor and component that were hit, the bone name for skeletal meshes, and the physical material at the impact point.",
+      "whenToUse": [
+        "Whenever you perform any line trace or sweep trace — FHitResult is the output struct",
+        "Applying point damage — ApplyPointDamage requires the FHitResult for hit bone and location",
+        "Spawning impact effects — use ImpactPoint and ImpactNormal to position decals and particles",
+        "Headshot or limb-specific damage — read BoneName to determine which body part was hit",
+        "Surface-specific audio and VFX — read PhysMaterial to determine surface type"
+      ],
+      "whenNotToUse": [
+        "When you only need a boolean hit/miss check — you still get FHitResult but can ignore its fields",
+        "For overlap queries that return FOverlapResult instead — different struct with different fields",
+        "Do not cache FHitResult long-term — the referenced actor or component may be destroyed"
+      ],
+      "relatedClasses": [
+        "FOverlapResult",
+        "UWorld",
+        "UPrimitiveComponent",
+        "UPhysicalMaterial",
+        "FCollisionQueryParams",
+        "UGameplayStatics",
+        "FDamageEvent"
+      ],
+      "commonMistakes": [
+        "Confusing ImpactPoint and Location — ImpactPoint is where the surface was hit, Location is where the trace shape center was at impact time",
+        "Confusing ImpactNormal and Normal — ImpactNormal is the surface normal, Normal is the trace shape normal",
+        "Not checking if GetActor() is nullptr before using the returned pointer — world geometry may not have an actor",
+        "Assuming BoneName is always valid — it is NAME_None for static meshes and non-skeletal geometry",
+        "Not checking PhysMaterial.IsValid() before dereferencing — not all surfaces have a physical material assigned",
+        "Reading FHitResult fields when the trace returned false (bBlockingHit is false) — the data is uninitialized"
+      ],
+      "keyPoints": [
+        "bBlockingHit: true if the trace hit something that blocks",
+        "GetActor(): the actor that was hit (can be nullptr for world geo without an actor)",
+        "GetComponent(): the specific UPrimitiveComponent that was hit",
+        "ImpactPoint: the exact world location where the trace hit the surface",
+        "ImpactNormal: the surface normal at the impact point (useful for decals, reflections)",
+        "Location: the location of the trace shape at the moment of impact (differs from ImpactPoint for sweeps)",
+        "Normal: the normal of the trace shape at impact",
+        "Distance: how far along the trace the hit occurred",
+        "BoneName: for skeletal meshes, which bone was hit (headshot detection!)",
+        "PhysMaterial: the physical material at the hit point (for surface-specific effects)"
+      ],
+      "codeExample": "// Using FHitResult for a shooting system\nvoid AMyWeapon::Fire() {\n    FHitResult Hit;\n    FVector Start = MuzzleLocation;\n    FVector End = Start + AimDirection * Range;\n    \n    if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility)) {\n        // What did we hit?\n        AActor* HitActor = Hit.GetActor();\n        FVector HitPoint = Hit.ImpactPoint;\n        FVector HitNormal = Hit.ImpactNormal;\n        \n        // Headshot detection\n        if (Hit.BoneName == \"head\") {\n            Damage *= 2.f;\n        }\n        \n        // Surface-specific effects\n        if (Hit.PhysMaterial.IsValid()) {\n            SpawnSurfaceEffect(Hit.PhysMaterial.Get(), HitPoint, HitNormal);\n        }\n        \n        // Spawn decal aligned to surface\n        FRotator DecalRot = HitNormal.Rotation();\n        SpawnDecal(HitPoint, DecalRot);\n        \n        // Apply damage\n        if (HitActor) {\n            UGameplayStatics::ApplyPointDamage(HitActor, Damage, AimDirection,\n                Hit, GetOwner()->GetInstigatorController(), GetOwner(), DamageTypeClass);\n        }\n    }\n}",
+      "tags": ["fhitresult", "hit result", "impact point", "impact normal", "bone", "phys material", "trace result"]
+    },
+    {
+      "id": "ref_col_004",
+      "title": "Collision Channels & Responses",
+      "description": "Collision channels categorize objects, and collision responses determine how objects interact with each other (block, overlap, or ignore).",
+      "whatItIs": "Collision channels are categories assigned to collision components (e.g., WorldStatic, Pawn, Projectile) and collision responses (Block, Overlap, Ignore) define how each channel interacts with every other channel. Together they form a matrix that governs all collision behavior in UE5.",
+      "whenToUse": [
+        "Setting up any actor that needs collision — every collidable actor needs a channel and response configuration",
+        "Creating custom projectile or interaction channels to filter traces precisely",
+        "Building trigger volumes that only respond to specific actor types",
+        "Separating player collision from AI collision for gameplay purposes",
+        "Configuring which objects a camera trace should detect for obstruction"
+      ],
+      "whenNotToUse": [
+        "Do not create a new custom channel for every actor type — UE5 limits you to 18 custom channels total",
+        "Avoid per-channel configuration when a collision preset (profile) already does what you need",
+        "Do not use collision channels as a general-purpose tagging system — use Gameplay Tags instead"
+      ],
+      "relatedClasses": [
+        "UPrimitiveComponent",
+        "ECollisionChannel",
+        "ECollisionResponse",
+        "ECollisionEnabled",
+        "FCollisionResponseContainer",
+        "UCollisionProfile",
+        "FBodyInstance"
+      ],
+      "commonMistakes": [
+        "Forgetting that both objects must agree on Block for a block to occur — if A blocks B but B ignores A, there is no blocking",
+        "Creating too many custom channels and running out of the 18-channel limit",
+        "Setting collision responses in the constructor but overriding them with a collision preset in Blueprint, or vice versa",
+        "Using SetCollisionResponseToAllChannels(ECR_Block) and then wondering why overlap events do not fire",
+        "Not understanding the difference between Object channels and Trace channels — traces use trace channels, physics uses object channels",
+        "Setting collision to QueryOnly but expecting physics simulation to work — use QueryAndPhysics if you need both"
+      ],
+      "keyPoints": [
+        "Built-in channels: WorldStatic, WorldDynamic, Pawn, PhysicsBody, Vehicle, Destructible",
+        "Trace channels: Visibility, Camera — used for line/sweep traces",
+        "Custom channels: create in Project Settings > Collision > New Object/Trace Channel (max 18 custom)",
+        "Collision responses per channel: Block (stops movement), Overlap (generates events), Ignore (no interaction)",
+        "Both objects must agree: A blocks B AND B blocks A for a block to occur",
+        "Collision Presets: named profiles (NoCollision, BlockAll, OverlapAll, BlockAllDynamic, Pawn, etc.)",
+        "SetCollisionProfileName(): apply a preset. SetCollisionResponseToChannel(): set individual responses.",
+        "SetCollisionEnabled(): None, QueryOnly (traces only), PhysicsOnly (simulation only), QueryAndPhysics (both)"
+      ],
+      "codeExample": "// Setup collision in constructor\nAMyPickup::AMyPickup() {\n    SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT(\"Sphere\"));\n    SetRootComponent(SphereComp);\n    \n    // Only detect overlaps with Pawns, ignore everything else\n    SphereComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);\n    SphereComp->SetCollisionResponseToAllChannels(ECR_Ignore);\n    SphereComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);\n    SphereComp->SetGenerateOverlapEvents(true);\n}\n\n// Or use a preset\nMeshComp->SetCollisionProfileName(TEXT(\"BlockAllDynamic\"));\n\n// Custom channel example (after creating 'Projectile' channel)\nSphereComp->SetCollisionObjectType(ECC_GameTraceChannel1); // Your custom channel\nSphereComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);",
+      "tags": ["collision channel", "collision response", "block", "overlap", "ignore", "preset", "profile", "custom channel"]
+    },
+    {
+      "id": "ref_col_005",
+      "title": "Overlap & Hit Events",
+      "description": "Collision components generate events when actors overlap or physically collide. These are the primary way to detect gameplay interactions like pickups, triggers, and damage zones.",
+      "whatItIs": "Overlap and hit events are delegate-based notifications fired by UPrimitiveComponent when collision interactions occur. Overlap events (BeginOverlap/EndOverlap) fire when two components interpenetrate, while hit events fire on blocking physical collisions. They are the event-driven alternative to polling with traces.",
+      "whenToUse": [
+        "Pickup collection — detect when a player walks into an item",
+        "Trigger volumes — detect when any actor enters or exits a region",
+        "Damage zones — apply damage-over-time while an actor is inside a volume",
+        "Projectile impacts — detect when a projectile hits a wall or character using OnComponentHit",
+        "Proximity detection — know when enemies are within a certain radius",
+        "Physics interactions — react to rigid bodies colliding with surfaces or each other"
+      ],
+      "whenNotToUse": [
+        "When you need precise per-frame hit information — use traces in Tick instead",
+        "For high-frequency physics contacts (e.g., a ball rolling on the ground) — OnComponentHit fires every frame and can be expensive",
+        "When you only need a one-time check — use GetOverlappingActors() or a single trace instead of binding persistent events",
+        "When neither actor moves — overlap events only fire on movement or spawn, not on static placement"
+      ],
+      "relatedClasses": [
+        "UPrimitiveComponent",
+        "UBoxComponent",
+        "USphereComponent",
+        "UCapsuleComponent",
+        "FHitResult",
+        "FOverlapResult",
+        "AActor"
+      ],
+      "commonMistakes": [
+        "Forgetting to set GenerateOverlapEvents=true on BOTH components — overlaps require both to opt in",
+        "Setting collision response to Block instead of Overlap — Block generates OnComponentHit, not OnComponentBeginOverlap",
+        "Binding delegates in the constructor instead of BeginPlay — components may not be fully initialized yet",
+        "Not checking the OtherActor class with Cast before using it — any actor type could trigger the overlap",
+        "Destroying the actor inside BeginOverlap without deferring — can cause issues if multiple overlaps fire in the same frame",
+        "Forgetting that OnComponentHit only fires when physics simulation is active or movement component sweeps — static overlapping objects will not fire hit events"
+      ],
+      "keyPoints": [
+        "OnComponentBeginOverlap: fired when two components start overlapping. Requires GenerateOverlapEvents=true on BOTH.",
+        "OnComponentEndOverlap: fired when two components stop overlapping.",
+        "OnComponentHit: fired when a physics collision occurs (blocking hit).",
+        "Both actors must have GenerateOverlapEvents=true and compatible collision responses (Overlap, not Ignore).",
+        "Bind with AddDynamic: Component->OnComponentBeginOverlap.AddDynamic(this, &MyClass::OnOverlap)",
+        "Signature: OnOverlap(UPrimitiveComponent*, AActor*, UPrimitiveComponent*, int32, bool, const FHitResult&)",
+        "For triggers: use a UBoxComponent/USphereComponent with Overlap response",
+        "GetOverlappingActors(): check current overlaps without waiting for events"
+      ],
+      "codeExample": "// Pickup with overlap detection\nvoid AMyPickup::BeginPlay() {\n    Super::BeginPlay();\n    SphereComp->OnComponentBeginOverlap.AddDynamic(this, &AMyPickup::OnOverlap);\n}\n\nvoid AMyPickup::OnOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,\n    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,\n    bool bFromSweep, const FHitResult& SweepResult) {\n    \n    if (AMyCharacter* Player = Cast<AMyCharacter>(OtherActor)) {\n        Player->AddItem(ItemData);\n        Destroy();\n    }\n}\n\n// Hit event for physics collision\nvoid AMyActor::BeginPlay() {\n    MeshComp->OnComponentHit.AddDynamic(this, &AMyActor::OnHit);\n}\n\nvoid AMyActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,\n    UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) {\n    // Physics collision occurred\n}",
+      "tags": ["overlap", "hit event", "begin overlap", "end overlap", "collision event", "trigger", "adddynamic"]
+    },
+    {
+      "id": "ref_col_006",
+      "title": "Physics Simulation",
+      "description": "UE5 uses the Chaos physics engine for rigid body simulation, constraints, and physical interactions.",
+      "whatItIs": "UE5's physics simulation is powered by the Chaos physics engine, which handles rigid body dynamics, gravity, forces, impulses, constraints (joints/hinges/springs), and collision resolution. Any UPrimitiveComponent can be made into a simulated physics body at runtime.",
+      "whenToUse": [
+        "Ragdoll effects — switching a character to physics simulation on death",
+        "Throwable or launchable objects — grenades, balls, debris that need realistic trajectories",
+        "Destructible environments — Chaos destruction for fracturing meshes on impact",
+        "Physics puzzles — stacking, balancing, or weight-based gameplay mechanics",
+        "Explosive force — applying radial impulses to scatter nearby objects",
+        "Vehicles — vehicle simulation relies on underlying physics constraints and forces"
+      ],
+      "whenNotToUse": [
+        "For precise deterministic movement — physics simulation is non-deterministic and frame-rate sensitive",
+        "For player character movement — use UCharacterMovementComponent instead, which handles replication and prediction",
+        "When you need exact network replication — physics replication is expensive and imprecise; use movement components for gameplay-critical objects",
+        "For simple projectiles that do not need to bounce or ricochet — a ProjectileMovementComponent or manual sweep is cheaper",
+        "On hundreds of simultaneous objects — physics simulation is CPU-intensive; pool and limit active bodies"
+      ],
+      "relatedClasses": [
+        "UPrimitiveComponent",
+        "UStaticMeshComponent",
+        "UPhysicsConstraintComponent",
+        "UPhysicalMaterial",
+        "FBodyInstance",
+        "URadialForceComponent",
+        "UCharacterMovementComponent",
+        "UProjectileMovementComponent",
+        "UGeometryCollectionComponent"
+      ],
+      "commonMistakes": [
+        "Enabling physics without collision — SetSimulatePhysics(true) requires collision to be enabled or the object falls through the world",
+        "Confusing AddForce and AddImpulse — Force is applied continuously per-frame (call in Tick), Impulse is a one-time push",
+        "Not accounting for mass — AddForce scales with mass, so heavy objects barely move; use bAccelChange=true to ignore mass",
+        "Setting velocity directly every frame instead of using forces — overrides physics simulation and prevents natural deceleration",
+        "Forgetting to set the component as Movable — physics simulation does not work on Static mobility components",
+        "Enabling physics on a component that is not the root — child components with physics can behave unexpectedly; make the physics body the root"
+      ],
+      "keyPoints": [
+        "SetSimulatePhysics(true): enable physics simulation on a UPrimitiveComponent",
+        "Physics requires: collision enabled, simple or complex collision, mass set",
+        "AddForce(Force), AddImpulse(Impulse): apply forces to physics bodies. Impulse is instant, Force is continuous.",
+        "AddForce with bAccelChange=true: ignores mass (applies as acceleration)",
+        "SetPhysicsLinearVelocity(), SetPhysicsAngularVelocityInDegrees(): directly set velocity",
+        "Mass: auto-calculated from volume and physical material density, or override with SetMassOverrideInKg()",
+        "Constraints: UPhysicsConstraintComponent for joints, hinges, springs between bodies",
+        "Physical Materials: define friction, restitution (bounciness), density per surface",
+        "SetEnableGravity(false): disable gravity on a specific component",
+        "Chaos destruction: fracture meshes for destructible environments"
+      ],
+      "codeExample": "// Launch a physics projectile\nvoid AMyProjectile::Fire(FVector Direction, float Force) {\n    MeshComp->SetSimulatePhysics(true);\n    MeshComp->SetEnableGravity(true);\n    MeshComp->AddImpulse(Direction * Force);\n}\n\n// Explosive force on nearby actors\nvoid AMyExplosion::Explode() {\n    TArray<FHitResult> Hits;\n    FCollisionShape Shape = FCollisionShape::MakeSphere(500.f);\n    GetWorld()->SweepMultiByChannel(Hits, GetActorLocation(), GetActorLocation(),\n        FQuat::Identity, ECC_PhysicsBody, Shape);\n    \n    for (auto& Hit : Hits) {\n        if (UPrimitiveComponent* Comp = Hit.GetComponent()) {\n            if (Comp->IsSimulatingPhysics()) {\n                FVector Dir = (Hit.ImpactPoint - GetActorLocation()).GetSafeNormal();\n                Comp->AddImpulse(Dir * 50000.f);\n            }\n        }\n    }\n}",
+      "tags": ["physics", "simulate", "force", "impulse", "chaos", "rigid body", "constraint", "gravity", "mass"]
+    }
+  ]
+}

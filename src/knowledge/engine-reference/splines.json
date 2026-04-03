@@ -1,0 +1,50 @@
+{
+  "category": "splines",
+  "displayName": "Spline Components",
+  "description": "UE5 splines: USplineComponent, USplineMeshComponent, paths, roads, rails, procedural placement along curves",
+  "entries": [
+    {
+      "id": "ref_spline_001",
+      "title": "Spline Components",
+      "description": "USplineComponent defines a curve in 3D space with editable points. Used for roads, rivers, roller coasters, cable paths, AI patrol routes, and procedural mesh placement along curves.",
+      "whatItIs": "USplineComponent is a SceneComponent that stores a Catmull-Rom or Bezier curve defined by control points. It provides functions to query positions, directions, and distances along the curve, making it the standard tool for defining paths and placing objects along curves.",
+      "whenToUse": [
+        "Defining paths for actors to follow — AI patrol routes, moving platforms, rail systems",
+        "Procedurally placing meshes along a curve — fences, roads, cables, pipes",
+        "Creating rivers, roads, or tracks that artists can edit by dragging points in the editor",
+        "Any system that needs a designer-editable curve in 3D space"
+      ],
+      "whenNotToUse": [
+        "Simple point A to point B movement — just Lerp between two points",
+        "NavMesh-based AI pathfinding — use the navigation system instead",
+        "Animation paths — use Sequencer or root motion"
+      ],
+      "relatedClasses": [
+        "USplineComponent",
+        "USplineMeshComponent",
+        "FSplinePoint",
+        "ESplineCoordinateSpace",
+        "FInterpCurveVector"
+      ],
+      "commonMistakes": [
+        "Not specifying ESplineCoordinateSpace (Local vs World) when querying positions — gets wrong results when the actor is transformed",
+        "Using GetLocationAtSplinePoint only (integer index) instead of GetLocationAtDistanceAlongSpline (smooth interpolation) for movement",
+        "Not closing the spline loop when it should loop — set bClosedLoop on the component",
+        "Creating USplineMeshComponents in BeginPlay without setting their mobility to Movable — static meshes can't be modified at runtime",
+        "Placing too many spline points when fewer would produce the same curve — more points = more computation"
+      ],
+      "keyPoints": [
+        "GetLocationAtDistanceAlongSpline(Distance, Space): world position at a distance along the curve",
+        "GetRotationAtDistanceAlongSpline(): rotation (tangent direction) at that distance",
+        "GetSplineLength(): total length of the curve in world units",
+        "GetNumberOfSplinePoints(): how many control points the spline has",
+        "GetLocationAtSplinePoint(Index, Space): position at a specific control point",
+        "USplineMeshComponent: deforms a static mesh to follow a spline segment — used for roads, pipes, cables",
+        "bClosedLoop: if true, the spline connects end to start",
+        "Edit in editor: select the spline, drag points, right-click to add/remove points"
+      ],
+      "codeExample": "// Move an actor along a spline over time\nUPROPERTY(EditAnywhere)\nUSplineComponent* PathSpline;\n\nfloat CurrentDistance = 0.f;\nfloat MoveSpeed = 200.f;\n\nvoid AMyMovingPlatform::Tick(float DeltaTime) {\n    Super::Tick(DeltaTime);\n    \n    CurrentDistance += MoveSpeed * DeltaTime;\n    float SplineLength = PathSpline->GetSplineLength();\n    \n    // Loop\n    if (CurrentDistance > SplineLength) CurrentDistance -= SplineLength;\n    \n    FVector NewLoc = PathSpline->GetLocationAtDistanceAlongSpline(CurrentDistance, ESplineCoordinateSpace::World);\n    FRotator NewRot = PathSpline->GetRotationAtDistanceAlongSpline(CurrentDistance, ESplineCoordinateSpace::World);\n    \n    SetActorLocationAndRotation(NewLoc, NewRot);\n}\n\n// Spawn meshes along a spline (fence posts)\nvoid AMyFence::BuildFence() {\n    float Spacing = 200.f;\n    float Length = SplineComp->GetSplineLength();\n    \n    for (float Dist = 0.f; Dist < Length; Dist += Spacing) {\n        FVector Loc = SplineComp->GetLocationAtDistanceAlongSpline(Dist, ESplineCoordinateSpace::World);\n        FRotator Rot = SplineComp->GetRotationAtDistanceAlongSpline(Dist, ESplineCoordinateSpace::World);\n        \n        UStaticMeshComponent* Post = NewObject<UStaticMeshComponent>(this);\n        Post->SetStaticMesh(FencePostMesh);\n        Post->SetWorldLocationAndRotation(Loc, Rot);\n        Post->RegisterComponent();\n    }\n}",
+      "tags": ["spline", "spline component", "spline mesh", "path", "curve", "road", "rail", "procedural"]
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "category": "gas",
+  "displayName": "GAS / Gameplay Ability System Issues",
+  "description": "Common Gameplay Ability System problems: abilities not activating, effects not applying, attributes not replicating, tag mismatches",
+  "entries": [
+    {
+      "id": "gas_001",
+      "title": "Ability Not Activating (TryActivateAbility Returns False)",
+      "symptoms": ["ability not activating", "TryActivateAbility returns false", "ability won't fire", "can't activate ability", "ability ignored"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Calling TryActivateAbility or TryActivateAbilityByClass does nothing and returns false. The ability never enters ActivateAbility(). This is usually caused by missing setup, tag conflicts, or the ability not being granted.",
+      "rootCause": "GAS checks several conditions before activating: the ability must be granted to the ASC, it must not be blocked by tags (BlockAbilitiesWithTag / ActivationBlockedTags), it must pass CanActivateAbility() (cost, cooldown, custom checks), and the ASC must not be inhibited. Any one of these failing silently blocks activation.",
+      "solution": [
+        "Verify the ability was granted: ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, Level, InputID, SourceObject))",
+        "Check tag requirements: does the ability have ActivationRequiredTags that the actor doesn't have?",
+        "Check tag blockers: does the actor have tags listed in the ability's ActivationBlockedTags?",
+        "Check if another active ability has BlockAbilitiesWithTag that matches your ability's AbilityTags",
+        "Verify CanActivateAbility() passes — override it and add logging to see why it fails",
+        "Make sure the cooldown GE hasn't left a tag on the ASC (check active effects with GetActiveEffects)",
+        "Ensure CommitAbility() was called in previously activated abilities — if you forgot, the cost/cooldown may be stuck"
+      ],
+      "codeExample": "// Granting an ability (usually in BeginPlay or PossessedBy)\nvoid AMyCharacter::GrantAbilities()\n{\n    if (!AbilitySystemComponent) return;\n    \n    for (TSubclassOf<UGameplayAbility>& Ability : DefaultAbilities)\n    {\n        AbilitySystemComponent->GiveAbility(\n            FGameplayAbilitySpec(Ability, 1, INDEX_NONE, this));\n    }\n}\n\n// Debug: check why activation fails\nbool UMyAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handle,\n    const FGameplayAbilityActorInfo* ActorInfo,\n    const FGameplayTagContainer* SourceTags,\n    const FGameplayTagContainer* TargetTags,\n    FGameplayTagContainer* OptionalRelevantTags) const\n{\n    bool bResult = Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags);\n    UE_LOG(LogTemp, Warning, TEXT(\"CanActivateAbility for %s: %s\"), *GetName(), bResult ? TEXT(\"YES\") : TEXT(\"NO\"));\n    return bResult;\n}",
+      "tags": ["gas", "ability", "activate", "tryactivateability", "grant", "tags", "blocked"]
+    },
+    {
+      "id": "gas_002",
+      "title": "GameplayEffect Not Applying or Not Modifying Attributes",
+      "symptoms": ["gameplay effect not working", "attribute not changing", "effect not applying", "damage not dealing", "health not decreasing", "modifier not applying"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "A GameplayEffect is applied but the target attribute doesn't change. The effect appears to do nothing. This is usually caused by targeting the wrong attribute, missing AttributeSet, or the modifier magnitude being zero.",
+      "rootCause": "The GE modifier must reference an attribute that exists on the target's ASC (via a registered AttributeSet). If the AttributeSet isn't added to the ASC, the attribute doesn't exist and the modifier silently does nothing. Other causes: ScalableFloat magnitude is 0, the modifier type is wrong (Additive vs Override), or the execution calculation returns 0.",
+      "solution": [
+        "Verify the target actor has the correct AttributeSet: ASC->GetOrCreateAttributeSubobject(UMyAttributeSet::StaticClass())",
+        "Check the GE modifier references the right attribute (e.g., UMyAttributeSet::GetHealthAttribute(), not a different set)",
+        "Check the magnitude: open the GE in editor, verify ScalableFloat is not 0",
+        "For ExecutionCalculations: add logging inside Execute_Implementation to verify the output modifier",
+        "Check Duration Policy: Instant effects apply and vanish. If you expect ongoing changes, use Duration or Infinite",
+        "Check if the attribute has clamping in PostGameplayEffectExecute that rejects the change",
+        "Use the GAS debugger: showdebug abilitysystem in console to see active effects and attribute values"
+      ],
+      "codeExample": "// Applying an effect to a target\nvoid ApplyDamage(UAbilitySystemComponent* SourceASC, UAbilitySystemComponent* TargetASC,\n    TSubclassOf<UGameplayEffect> DamageEffect, float Level)\n{\n    FGameplayEffectContextHandle Context = SourceASC->MakeEffectContext();\n    Context.AddSourceObject(SourceASC->GetOwner());\n    \n    FGameplayEffectSpecHandle Spec = SourceASC->MakeOutgoingSpec(DamageEffect, Level, Context);\n    if (Spec.IsValid())\n    {\n        TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());\n    }\n}\n\n// Debugging in AttributeSet\nvoid UMyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)\n{\n    Super::PostGameplayEffectExecute(Data);\n    UE_LOG(LogTemp, Warning, TEXT(\"GE applied to %s: Magnitude = %f\"),\n        *Data.EvaluatedData.Attribute.GetName(), Data.EvaluatedData.Magnitude);\n}",
+      "tags": ["gas", "gameplay effect", "attribute", "modifier", "damage", "health", "apply"]
+    },
+    {
+      "id": "gas_003",
+      "title": "AttributeSet Not Replicating / Attributes Out of Sync",
+      "symptoms": ["attribute not replicating", "health out of sync", "client shows wrong value", "attribute different on server and client", "attribute desync"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Attributes like Health or Mana show correct values on the server but are wrong or stale on clients. Changes made on the server don't propagate to clients.",
+      "rootCause": "Attributes don't replicate automatically. You must set up replication for each attribute using GAMEPLAYATTRIBUTE_REPNOTIFY and add the attribute to GetLifetimeReplicatedProps. Also, the ASC itself must be on a replicated actor (usually PlayerState for player-controlled characters).",
+      "solution": [
+        "Add UPROPERTY(ReplicatedUsing=OnRep_YourAttribute) to each attribute in your AttributeSet",
+        "Implement the OnRep function using GAMEPLAYATTRIBUTE_REPNOTIFY macro",
+        "Add the attribute to GetLifetimeReplicatedProps using DOREPLIFETIME_CONDITION_NOTIFY",
+        "Make sure the owning Actor (the one with the ASC) has bReplicates = true",
+        "For player characters that respawn: put the ASC on APlayerState, not the Pawn, so it survives pawn swaps",
+        "Make sure you're applying GEs on the server (HasAuthority) — clients should request via ServerRPC"
+      ],
+      "codeExample": "// AttributeSet header\nUPROPERTY(ReplicatedUsing = OnRep_Health, BlueprintReadOnly, Category = \"Attributes\")\nFGameplayAttributeData Health;\nATTRIBUTE_ACCESSORS(UMyAttributeSet, Health)\n\nUFUNCTION()\nvoid OnRep_Health(const FGameplayAttributeData& OldHealth);\n\n// AttributeSet source\nvoid UMyAttributeSet::OnRep_Health(const FGameplayAttributeData& OldHealth)\n{\n    GAMEPLAYATTRIBUTE_REPNOTIFY(UMyAttributeSet, Health, OldHealth);\n}\n\nvoid UMyAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const\n{\n    Super::GetLifetimeReplicatedProps(OutLifetimeProps);\n    DOREPLIFETIME_CONDITION_NOTIFY(UMyAttributeSet, Health, COND_None, REPNOTIFY_Always);\n}",
+      "tags": ["gas", "attribute", "replication", "replicate", "sync", "multiplayer", "health", "playerstate"]
+    },
+    {
+      "id": "gas_004",
+      "title": "GameplayTags Not Matching / Tag Query Always Fails",
+      "symptoms": ["gameplay tag not matching", "tag query fails", "HasMatchingGameplayTag returns false", "tag not found", "tag filter not working"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "GameplayTag checks like HasMatchingGameplayTag or tag requirements on abilities always return false, even though you think the actor should have the tag. Effects or abilities that depend on tags don't trigger.",
+      "rootCause": "GameplayTags are hierarchical (Status.Debuff.Stun is a child of Status.Debuff). A common mistake is checking for an exact tag when you need HasTag (which matches parents), or the tag was never actually added to the ASC's owned tags. Tags from GameplayEffects are only present while the effect is active.",
+      "solution": [
+        "Verify the tag exists in the project's GameplayTag settings (Project Settings -> GameplayTags or a .ini DataTable)",
+        "Check spelling and hierarchy: 'Ability.Skill.Fireball' is not the same as 'Ability.Skills.Fireball'",
+        "Use HasMatchingGameplayTag for 'does this container have this tag or a child of it'",
+        "Use HasTagExact only when you specifically need exact match, not parent matching",
+        "Tags granted by GameplayEffects: check the effect is still active (not expired or removed)",
+        "LooseGameplayTags on the ASC: these are manually added/removed and persist until explicitly removed",
+        "Use the tag debugger: showdebug abilitysystem shows all tags on the ASC"
+      ],
+      "codeExample": "// Tag hierarchy matters\n// Status.Debuff.Stun IS a child of Status.Debuff\nFGameplayTag StunTag = FGameplayTag::RequestGameplayTag(FName(\"Status.Debuff.Stun\"));\nFGameplayTag DebuffTag = FGameplayTag::RequestGameplayTag(FName(\"Status.Debuff\"));\n\n// HasTag checks parents — returns true if ASC has Status.Debuff.Stun\nbool bHasDebuff = ASC->HasMatchingGameplayTag(DebuffTag); // true!\n\n// HasTagExact only matches exactly\nbool bExact = ASC->HasMatchingGameplayTag(StunTag); // only if Stun specifically\n\n// Adding a loose tag (persists until manually removed)\nASC->AddLooseGameplayTag(StunTag);\n\n// Removing it\nASC->RemoveLooseGameplayTag(StunTag);",
+      "tags": ["gas", "gameplay tag", "tag", "matching", "query", "hierarchy", "filter"]
+    },
+    {
+      "id": "gas_005",
+      "title": "AbilitySystemComponent Not Found / GetAbilitySystemComponent Returns Null",
+      "symptoms": ["ASC is null", "GetAbilitySystemComponent returns null", "no ability system", "IAbilitySystemInterface", "ability system not found"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "Calling UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent or IAbilitySystemInterface::GetAbilitySystemComponent returns nullptr. Abilities, effects, and attribute checks all fail because the ASC can't be found.",
+      "rootCause": "The most common cause is forgetting to implement the IAbilitySystemInterface on the actor that owns the ASC. The engine uses this interface to locate the ASC. Without it, nothing can find your AbilitySystemComponent even if it exists on the actor. Another cause: the ASC lives on PlayerState but the code is querying the Pawn.",
+      "solution": [
+        "Implement IAbilitySystemInterface on the owning actor and override GetAbilitySystemComponent()",
+        "If the ASC is on PlayerState: implement the interface on BOTH the PlayerState AND the Character/Pawn, with the Pawn's version forwarding to PlayerState",
+        "Make sure the ASC is created in the constructor with CreateDefaultSubobject, not later",
+        "Verify the ASC pointer is assigned before BeginPlay (not in a delayed initialization)",
+        "When using ASC on PlayerState: initialize the ASC's ActorInfo in PossessedBy (server) and OnRep_PlayerState (client)"
+      ],
+      "codeExample": "// Step 1: Implement the interface on your character\n// MyCharacter.h\nclass AMyCharacter : public ACharacter, public IAbilitySystemInterface\n{\n    GENERATED_BODY()\npublic:\n    virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;\n\n    UPROPERTY(VisibleAnywhere, BlueprintReadOnly)\n    UAbilitySystemComponent* AbilitySystemComponent;\n};\n\n// MyCharacter.cpp\nAMyCharacter::AMyCharacter()\n{\n    AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT(\"ASC\"));\n}\n\nUAbilitySystemComponent* AMyCharacter::GetAbilitySystemComponent() const\n{\n    return AbilitySystemComponent;\n}\n\n// If ASC lives on PlayerState instead:\nUAbilitySystemComponent* AMyCharacter::GetAbilitySystemComponent() const\n{\n    AMyPlayerState* PS = GetPlayerState<AMyPlayerState>();\n    return PS ? PS->GetAbilitySystemComponent() : nullptr;\n}\n\n// Initialize ActorInfo for PlayerState-owned ASC\nvoid AMyCharacter::PossessedBy(AController* NewController)\n{\n    Super::PossessedBy(NewController);\n    if (AMyPlayerState* PS = GetPlayerState<AMyPlayerState>())\n    {\n        PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);\n    }\n}",
+      "tags": ["gas", "asc", "ability system component", "interface", "null", "playerstate", "setup"]
+    },
+    {
+      "id": "gas_006",
+      "title": "Cooldown Not Working / Ability Can Be Spammed",
+      "symptoms": ["cooldown not working", "ability can be spammed", "cooldown ignored", "no cooldown", "cooldown tag not applied"],
+      "ueVersions": ["5.0", "5.1", "5.2", "5.3", "5.4"],
+      "description": "An ability can be activated repeatedly with no cooldown delay. The cooldown GameplayEffect doesn't seem to prevent reactivation.",
+      "rootCause": "Cooldowns in GAS work via GameplayTags, not timers. A cooldown GE grants a tag for its duration, and the ability checks for that tag before activating. If the cooldown GE isn't set up correctly (wrong Duration Policy, missing tag grant, or CommitAbility not called), the tag never gets applied and the ability can be spammed.",
+      "solution": [
+        "Make sure CommitAbility() is called inside ActivateAbility() — it's what triggers the cooldown and cost",
+        "Verify the cooldown GE has Duration Policy set to 'Has Duration', NOT 'Instant'",
+        "The cooldown GE must grant a GameplayTag via 'GrantedTags' or 'DynamicGrantedTags'",
+        "The ability's CooldownGameplayEffectClass must be set to your cooldown GE class",
+        "Override GetCooldownTags() if you have a custom cooldown tag setup",
+        "Check that the duration is actually set (a Duration of 0 means no cooldown)"
+      ],
+      "codeExample": "// In your ability — CommitAbility applies cost AND cooldown\nvoid UMyAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handle,\n    const FGameplayAbilityActorInfo* ActorInfo,\n    const FGameplayAbilityActivationInfo ActivationInfo,\n    const FGameplayEventData* TriggerEventData)\n{\n    if (!CommitAbility(Handle, ActorInfo, ActivationInfo))\n    {\n        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);\n        return;\n    }\n    \n    // Ability logic here...\n}\n\n// Cooldown GE setup (in editor or C++):\n// - Duration Policy: Has Duration\n// - Duration Magnitude: 2.0 (seconds)\n// - GrantedTags: add 'Cooldown.Ability.Fireball'\n// The ability's ActivationBlockedTags should include the same tag",
+      "tags": ["gas", "cooldown", "spam", "commit", "duration", "gameplay effect", "tag"]
+    }
+  ]
+}

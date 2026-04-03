@@ -1,0 +1,100 @@
+{
+  "category": "pcg",
+  "displayName": "Procedural Content Generation (PCG)",
+  "description": "UE5 PCG framework: procedural placement of meshes, foliage, and actors using node-based graphs",
+  "entries": [
+    {
+      "id": "ref_pcg_001",
+      "title": "PCG Framework Overview",
+      "description": "The PCG Framework (UE5.2+) is a node-based system for procedurally generating content like foliage, props, buildings, and terrain details. It creates density-aware, rule-based placement without manual positioning.",
+      "whatItIs": "The PCG Framework is UE5's built-in procedural content generation system that uses node-based graphs to define rules for scattering points, filtering them by conditions, and spawning static meshes or actors at those points. It replaces manual placement of environmental details with deterministic, seed-based procedural generation.",
+      "whenToUse": [
+        "Scattering foliage, rocks, props, and environmental details across large landscapes",
+        "Procedural level generation where layouts follow rule-based placement (villages, dungeons, roads)",
+        "When artists need to rapidly populate worlds without manually placing thousands of objects",
+        "Runtime procedural generation for infinite or open-world games that stream content"
+      ],
+      "whenNotToUse": [
+        "Hand-crafted linear levels where every prop is intentionally placed for narrative or gameplay reasons",
+        "Very small scenes with only a handful of objects — manual placement is faster",
+        "When you need complex gameplay logic tied to placement — PCG is primarily spatial, not gameplay-aware",
+        "Pre-UE5.2 projects — the PCG framework is not available in earlier versions"
+      ],
+      "relatedClasses": [
+        "UPCGGraph",
+        "UPCGComponent",
+        "APCGVolume",
+        "UPCGSettings",
+        "UPCGSubsystem",
+        "UPCGData",
+        "UPCGPointData",
+        "UPCGSpatialData"
+      ],
+      "commonMistakes": [
+        "Not setting a seed, causing different results every regeneration and making debugging difficult",
+        "Using extremely high point density on large volumes, causing millions of points and editor freezes",
+        "Forgetting to add a Distance node to enforce minimum spacing, resulting in overlapping meshes",
+        "Running PCG at runtime without LOD or distance culling, tanking frame rate with thousands of spawned actors",
+        "Not using exclusion volumes to prevent generation inside buildings, on roads, or in playable areas"
+      ],
+      "keyPoints": [
+        "PCG Graph: node-based editor defining generation rules. Input data → process → output points/meshes.",
+        "PCG Component: add to an actor to execute a PCG graph in the world.",
+        "PCG Volume: defines the area where generation occurs.",
+        "Nodes: Surface Sampler (scatter points on terrain), Static Mesh Spawner (place meshes at points), Filter, Transform, etc.",
+        "Attributes: data attached to each point (density, scale, rotation, custom values).",
+        "Deterministic: same seed = same result. Change seed for variation.",
+        "Runtime generation: PCG can run at runtime for infinite worlds, but most use is editor-time.",
+        "Landscape integration: sample landscape height, layer weights, for biome-aware placement."
+      ],
+      "tags": ["pcg", "procedural", "generation", "foliage", "scatter", "graph", "placement"]
+    },
+    {
+      "id": "ref_pcg_002",
+      "title": "PCG Common Nodes & Workflow",
+      "description": "The typical PCG workflow: sample a surface, filter by rules, transform points, then spawn meshes. Understanding the core nodes lets you build any procedural placement system.",
+      "whatItIs": "The PCG node library provides building blocks for procedural placement: samplers generate points on surfaces, filters cull points by spatial or attribute criteria, transforms modify point properties, and spawners instantiate meshes or actors. Chaining these nodes defines a complete procedural pipeline.",
+      "whenToUse": [
+        "Building any PCG graph — these are the fundamental nodes you will use in virtually every setup",
+        "When you need biome-aware placement that reads landscape paint layers",
+        "Creating multi-pass generation where different object types (trees, rocks, grass) each have separate filter and spawn stages",
+        "When you need exclusion zones, minimum distance enforcement, or density variation"
+      ],
+      "whenNotToUse": [
+        "When a single Blueprint spawn loop would be simpler for a small number of objects",
+        "When you need fully custom placement algorithms not expressible as a node graph — write a custom PCG node or use C++ instead",
+        "For non-spatial procedural generation (story, quests, dialogue) — PCG is designed for world-space placement"
+      ],
+      "relatedClasses": [
+        "UPCGSurfaceSamplerSettings",
+        "UPCGStaticMeshSpawnerSettings",
+        "UPCGDensityFilterSettings",
+        "UPCGBoundsFilterSettings",
+        "UPCGTransformPointsSettings",
+        "UPCGGetLandscapeDataSettings",
+        "UPCGSubgraph",
+        "UPCGMergeSettings"
+      ],
+      "commonMistakes": [
+        "Placing Surface Sampler after filters instead of before — the sampler must come first to generate points",
+        "Not connecting the Landscape Data node output to the filter, so biome filtering does nothing",
+        "Using too many chained filters without a Merge, creating disconnected streams that never recombine",
+        "Forgetting to set the mesh array on Static Mesh Spawner, resulting in points with no visual output",
+        "Not using Subgraphs for reusable logic, leading to duplicated node setups across multiple PCG graphs"
+      ],
+      "keyPoints": [
+        "Surface Sampler: generates points on surfaces within the volume. Controls density (points per m²).",
+        "Get Landscape Data: samples landscape layers for biome filtering (grass layer, rock layer, etc.).",
+        "Density Filter: remove points based on density attribute (threshold, range).",
+        "Bounds Filter: remove points outside/inside a shape (exclusion zones).",
+        "Transform Points: modify position, rotation, scale of points (randomize, align to surface normal).",
+        "Static Mesh Spawner: places static meshes at each point. Supports mesh variations per point.",
+        "Copy Points: duplicate point data for multi-pass generation.",
+        "Merge: combine multiple point streams into one.",
+        "Distance: add distance-based culling (min distance between points).",
+        "Subgraph: reuse PCG logic as a nested graph node."
+      ],
+      "tags": ["pcg nodes", "surface sampler", "density", "filter", "mesh spawner", "landscape", "workflow"]
+    }
+  ]
+}

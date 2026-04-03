@@ -1,0 +1,235 @@
+{
+  "category": "gas-abilities",
+  "displayName": "Gameplay Ability System (GAS)",
+  "description": "UE5 Gameplay Ability System: abilities, gameplay effects, attribute sets, ability tasks, and the GAS architecture",
+  "entries": [
+    {
+      "id": "ref_gas_001",
+      "title": "GAS Architecture Overview",
+      "description": "The Gameplay Ability System (GAS) is a flexible framework for implementing abilities, buffs/debuffs, attributes (health, mana), and complex gameplay interactions. Originally built for Paragon and Fortnite.",
+      "whatItIs": "The Gameplay Ability System is a comprehensive, production-proven framework built into UE5 for handling abilities, status effects, attributes, and complex gameplay interactions. It provides a standardized architecture for ability activation, cooldowns, costs, attribute modification, and networked gameplay replication.",
+      "whenToUse": [
+        "Building RPGs, MOBAs, or action games with multiple character abilities and status effects",
+        "Projects that need a robust buff/debuff system with stacking, duration, and periodic effects",
+        "Games requiring networked ability prediction and replication out of the box",
+        "When you need attribute-driven gameplay (health, mana, stamina) with modifier support",
+        "Complex combat systems where abilities interact, cancel, and block each other via tags"
+      ],
+      "whenNotToUse": [
+        "Very simple games with one or two actions (e.g., a basic platformer with only jump and move)",
+        "Projects where the learning curve and setup overhead of GAS outweigh its benefits",
+        "Prototypes where a lightweight custom ability system would be faster to implement",
+        "When your team is unfamiliar with GAS and the project timeline does not allow for ramp-up"
+      ],
+      "relatedClasses": [
+        "UAbilitySystemComponent",
+        "UGameplayAbility",
+        "UGameplayEffect",
+        "UAttributeSet",
+        "FGameplayTag",
+        "FGameplayTagContainer",
+        "UGameplayCueManager",
+        "AAbilitySystemGlobals"
+      ],
+      "commonMistakes": [
+        "Forgetting to add 'GameplayAbilities' to Build.cs module dependencies",
+        "Not calling UAbilitySystemGlobals::Get().InitGlobalData() in your GameInstance (required in some UE5 versions)",
+        "Placing the ASC on the Pawn instead of the PlayerState for games where pawns are frequently swapped",
+        "Trying to use GAS without understanding Gameplay Tags — tags are essential to the entire system",
+        "Over-engineering simple mechanics with GAS when a direct function call would be sufficient"
+      ],
+      "keyPoints": [
+        "AbilitySystemComponent (ASC): the core component. Manages abilities, effects, and attributes for an actor.",
+        "GameplayAbility: defines what an ability does (cost, cooldown, targeting, execution).",
+        "GameplayEffect: modifies attributes (deal 50 damage, heal 20 HP, buff speed for 10s).",
+        "AttributeSet: defines numeric attributes (Health, Mana, Strength). Can have multiple sets per ASC.",
+        "GameplayTags: hierarchical tags for categorization, requirements, and querying (Ability.Fire.Fireball).",
+        "GameplayCue: visual/audio feedback for effects (particles, sounds) without gameplay logic.",
+        "Add 'GameplayAbilities' to your Build.cs dependencies."
+      ],
+      "tags": ["gas", "gameplay ability system", "ability", "effect", "attribute", "overview"]
+    },
+    {
+      "id": "ref_gas_002",
+      "title": "Gameplay Abilities",
+      "description": "A GameplayAbility represents a skill, action, or power that an actor can use. It handles activation, execution, cost, cooldown, and targeting.",
+      "whatItIs": "UGameplayAbility is the base class for any activatable ability in GAS. It encapsulates the full lifecycle of an ability — from checking activation requirements and committing costs, through executing gameplay logic with async Ability Tasks, to ending and entering cooldown.",
+      "whenToUse": [
+        "Implementing player skills like fireball, heal, dash, or shield that have costs and cooldowns",
+        "Actions that need to check and consume resources (mana, stamina, ammo) before executing",
+        "Abilities that play montages, wait for targeting input, or have multi-step async execution",
+        "Skills that should be blocked or canceled by other abilities via Gameplay Tags",
+        "Networked abilities that need client prediction and server authority"
+      ],
+      "whenNotToUse": [
+        "Simple actions with no cost, cooldown, or complex lifecycle (a basic jump can use CharacterMovement directly)",
+        "Passive effects that are always active — use a Gameplay Effect with infinite duration instead",
+        "Non-ability gameplay logic like inventory management or menu navigation",
+        "When the ability is purely data-driven with no custom logic — a Gameplay Effect alone may suffice"
+      ],
+      "relatedClasses": [
+        "UGameplayAbility",
+        "UAbilitySystemComponent",
+        "UGameplayEffect",
+        "UAbilityTask",
+        "UAbilityTask_PlayMontageAndWait",
+        "UAbilityTask_WaitTargetData",
+        "FGameplayAbilitySpec",
+        "FGameplayAbilitySpecHandle"
+      ],
+      "commonMistakes": [
+        "Forgetting to call EndAbility() when the ability finishes — leaves the ability stuck in an active state",
+        "Not calling CommitAbility() to apply cost and cooldown, or calling it too late after effects are already applied",
+        "Using InstancedPerExecution for abilities that do not need it — wastes memory with a new instance every activation",
+        "Not handling the case where CommitAbility() fails (insufficient resources) — must end the ability gracefully",
+        "Activating abilities directly instead of going through ASC->TryActivateAbility(), bypassing tag checks and networking"
+      ],
+      "keyPoints": [
+        "UGameplayAbility: base class. Override ActivateAbility() and EndAbility() at minimum.",
+        "Activation: triggered by GameplayTag, input binding, or direct call via ASC->TryActivateAbility().",
+        "Cost: a GameplayEffect that must be affordable to activate (e.g., requires 30 mana).",
+        "Cooldown: a GameplayEffect with a duration that prevents reactivation.",
+        "Instancing: NonInstanced (shared CDO), InstancedPerActor (one per owner), InstancedPerExecution (one per use).",
+        "Ability Tasks: async building blocks within abilities (WaitTargetData, PlayMontageAndWait, WaitDelay).",
+        "Tags: AbilityTags (categorization), ActivationBlockedTags, CancelAbilitiesWithTag."
+      ],
+      "codeExample": "UCLASS()\nclass UGA_FireBall : public UGameplayAbility {\n    GENERATED_BODY()\npublic:\n    UGA_FireBall() {\n        InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;\n        AbilityTags.AddTag(FGameplayTag::RequestGameplayTag(\"Ability.Fire.Fireball\"));\n    }\n    \n    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,\n        const FGameplayAbilityActorInfo* ActorInfo,\n        const FGameplayAbilityActivationInfo ActivationInfo,\n        const FGameplayEventData* TriggerEventData) override {\n        \n        // Play montage, spawn projectile, apply cost, start cooldown\n        CommitAbility(Handle, ActorInfo, ActivationInfo);  // applies cost + cooldown\n        SpawnFireball();\n    }\n};",
+      "tags": ["gameplay ability", "activate", "cooldown", "cost", "instancing", "tags"]
+    },
+    {
+      "id": "ref_gas_003",
+      "title": "Gameplay Effects",
+      "description": "GameplayEffects modify AttributeSets. They can be instant (deal damage), durational (buff for 10s), or infinite (permanent stat change). They are data-only — no code needed for simple effects.",
+      "whatItIs": "UGameplayEffect is a data-driven class that defines how attributes are modified. It specifies the duration, modifiers (add, multiply, override), stacking behavior, periodic application, granted abilities, and visual cue triggers — all configurable in the editor without writing C++ code.",
+      "whenToUse": [
+        "Dealing damage or healing by modifying Health attributes instantly",
+        "Applying timed buffs and debuffs (speed boost for 10 seconds, poison for 5 seconds)",
+        "Creating damage-over-time or heal-over-time effects using periodic application",
+        "Granting temporary abilities while a buff is active (e.g., fire shield grants a fire aura ability)",
+        "Applying permanent stat changes like leveling up or equipping gear"
+      ],
+      "whenNotToUse": [
+        "Non-attribute gameplay logic — Gameplay Effects only modify attributes, not arbitrary game state",
+        "Complex conditional logic that cannot be expressed through GE modifiers and tags — use an ability instead",
+        "Visual-only effects with no attribute changes — use Gameplay Cues directly",
+        "When you need custom per-frame logic during the effect — consider an ability with tasks instead"
+      ],
+      "relatedClasses": [
+        "UGameplayEffect",
+        "FGameplayEffectSpec",
+        "FGameplayEffectModCallbackData",
+        "UAbilitySystemComponent",
+        "UAttributeSet",
+        "FGameplayModifierInfo",
+        "FActiveGameplayEffect",
+        "UGameplayCueManager"
+      ],
+      "commonMistakes": [
+        "Using Duration effects when Instant is appropriate (e.g., one-time damage should be Instant, not Duration with 0 seconds)",
+        "Forgetting to set stacking policy, causing multiple applications to stack infinitely and break balance",
+        "Not using SetByCaller for dynamic values — hardcoding damage amounts in the GE instead of passing them at runtime",
+        "Applying effects directly to the ASC without creating a proper FGameplayEffectSpec with context",
+        "Confusing Modifier operations: Add is additive, Multiply multiplies the current value, Override replaces it entirely"
+      ],
+      "keyPoints": [
+        "Duration types: Instant (apply once), Duration (timed), Infinite (permanent until removed)",
+        "Modifiers: Add, Multiply, Override an attribute value. Can use SetByCaller for dynamic values.",
+        "Stacking: how multiple applications combine. Count, Aggregate, Override. Stack limits.",
+        "Period: for duration/infinite effects, can apply periodically (damage over time every 1s).",
+        "Granted Abilities: a GE can grant abilities while active (buff gives a new skill).",
+        "Gameplay Cues: GE can trigger visual/audio cues on apply, remove, and while active.",
+        "Tags: AssetTags, GrantedTags (added to target while active), ApplicationTag requirements."
+      ],
+      "tags": ["gameplay effect", "modifier", "duration", "stacking", "period", "dot", "buff", "debuff"]
+    },
+    {
+      "id": "ref_gas_004",
+      "title": "Attribute Sets",
+      "description": "AttributeSets define and manage numeric gameplay attributes (Health, MaxHealth, Mana, Damage, Armor). They live on the AbilitySystemComponent.",
+      "whatItIs": "UAttributeSet is a UObject subclass that defines a collection of FGameplayAttributeData properties representing numeric gameplay values. It provides callbacks for clamping values before changes and reacting to changes after Gameplay Effects execute, and it handles network replication of attribute state.",
+      "whenToUse": [
+        "Defining core character stats like Health, MaxHealth, Mana, Stamina, and Armor",
+        "Any numeric value that Gameplay Effects need to read or modify",
+        "When you need pre-change clamping (PreAttributeChange) or post-change reactions (PostGameplayEffectExecute)",
+        "Separating attribute groups logically (combat attributes, economy attributes, progression attributes)",
+        "Multiplayer games where attribute values must replicate to clients"
+      ],
+      "whenNotToUse": [
+        "Non-numeric data like inventory items, quest states, or string-based data",
+        "Values that are never modified by Gameplay Effects — use regular UPROPERTY variables instead",
+        "Temporary calculation values that do not need replication or GAS integration",
+        "When the project does not use GAS — plain variables or a custom system would be simpler"
+      ],
+      "relatedClasses": [
+        "UAttributeSet",
+        "FGameplayAttributeData",
+        "UAbilitySystemComponent",
+        "FGameplayAttribute",
+        "FGameplayEffectModCallbackData",
+        "UGameplayEffect"
+      ],
+      "commonMistakes": [
+        "Not clamping Health to [0, MaxHealth] in PreAttributeChange, allowing negative health or exceeding the max",
+        "Modifying attributes directly instead of through Gameplay Effects, bypassing the GAS pipeline and replication",
+        "Forgetting to implement GetLifetimeReplicatedProps and DOREPLIFETIME for replicated attributes",
+        "Using a single monolithic AttributeSet for everything instead of splitting into logical groups",
+        "Not using the ATTRIBUTE_ACCESSORS macro, leading to verbose and error-prone attribute access code"
+      ],
+      "keyPoints": [
+        "UAttributeSet: base class. Define attributes as FGameplayAttributeData.",
+        "Use GAMEPLAYATTRIBUTE_PROPERTY_GETTER and GAMEPLAYATTRIBUTE_VALUE_GETTER macros for boilerplate.",
+        "PreAttributeChange(): called before a modifier changes a value. Use for clamping.",
+        "PostGameplayEffectExecute(): called after a GE modifies an attribute. Use for reactions (death on Health <= 0).",
+        "Multiple AttributeSets per ASC: separate Health attributes from Combat attributes from Economy.",
+        "Attributes replicate via the ASC — mark with UPROPERTY(ReplicatedUsing) and register in GetLifetimeReplicatedProps."
+      ],
+      "codeExample": "UCLASS()\nclass UMyAttributeSet : public UAttributeSet {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Health)\n    FGameplayAttributeData Health;\n    ATTRIBUTE_ACCESSORS(UMyAttributeSet, Health)\n    \n    UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_MaxHealth)\n    FGameplayAttributeData MaxHealth;\n    ATTRIBUTE_ACCESSORS(UMyAttributeSet, MaxHealth)\n    \n    virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override {\n        if (Data.EvaluatedData.Attribute == GetHealthAttribute()) {\n            SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));\n            if (GetHealth() <= 0.f) {\n                // Trigger death\n            }\n        }\n    }\n};",
+      "tags": ["attribute set", "health", "mana", "gameplayattributedata", "clamp", "replicate"]
+    },
+    {
+      "id": "ref_gas_005",
+      "title": "Gameplay Tags",
+      "description": "Gameplay Tags are hierarchical labels (like 'Status.Debuff.Stun') used throughout UE5 for categorization, querying, and requirements. They are central to GAS but usable anywhere.",
+      "whatItIs": "Gameplay Tags are a hierarchical naming system (e.g., 'Ability.Fire.Fireball') stored as optimized FName hashes. They provide fast, flexible categorization and querying used heavily by GAS for ability requirements, blocking, and identification, but are equally useful in any UE5 system for tagging and filtering.",
+      "whenToUse": [
+        "Categorizing abilities, effects, and items in a hierarchical taxonomy",
+        "Defining activation requirements and blocking conditions for GAS abilities",
+        "Tagging actor states (Status.Debuff.Stun, Status.Buff.Invincible) for querying",
+        "Filtering and querying collections of objects by category (damage types, item rarities)",
+        "AI decision-making based on world state tags (Enemy.Alerted, Zone.Safe)"
+      ],
+      "whenNotToUse": [
+        "Storing numeric values — tags are labels, not data containers (use attributes for numbers)",
+        "Unique identifiers for specific instances — tags are categories, not GUIDs",
+        "When a simple enum would be clearer and the hierarchy is not needed",
+        "Extremely high-frequency per-frame tag container operations on thousands of actors (profile first)"
+      ],
+      "relatedClasses": [
+        "FGameplayTag",
+        "FGameplayTagContainer",
+        "FGameplayTagQuery",
+        "UGameplayTagsManager",
+        "UAbilitySystemComponent",
+        "UGameplayAbility",
+        "UGameplayEffect"
+      ],
+      "commonMistakes": [
+        "Using HasTagExact when HasTag is intended — HasTag matches parent tags, HasTagExact does not",
+        "Defining tags only in C++ with RequestGameplayTag instead of registering them in Project Settings or .ini files",
+        "Creating flat tag structures without hierarchy, losing the parent-child matching benefits",
+        "Misspelling tag names in code — RequestGameplayTag will fail silently or crash if the tag is not registered",
+        "Not leveraging tag-based ability blocking and cancellation in GAS, reimplementing it manually with booleans"
+      ],
+      "keyPoints": [
+        "Hierarchical: 'Ability.Fire.Fireball' is a child of 'Ability.Fire' and 'Ability'",
+        "Defined in: Project Settings > Gameplay Tags, or in .ini files, or via DataTable",
+        "FGameplayTag: a single tag. FGameplayTagContainer: a set of tags.",
+        "Queries: HasTag, HasAny, HasAll, HasTagExact. Parent tags match children.",
+        "In GAS: used for ability requirements, blocking, canceling, and identifying effects.",
+        "Outside GAS: use for actor states, item categories, damage types, AI conditions.",
+        "Performance: tags are internally stored as FName — comparison is fast (hash-based)."
+      ],
+      "tags": ["gameplay tags", "hierarchy", "container", "query", "requirements", "categorization"]
+    }
+  ]
+}

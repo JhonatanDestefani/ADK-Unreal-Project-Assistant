@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\(''./src/unreal/parser''\\); require\\(''./src/unreal/context''\\); require\\(''./src/unreal/blueprint''\\); require\\(''./src/ai/guide''\\); require\\(''./src/routes/analyze''\\); console.log\\(''All modules load successfully''\\)\")",
+      "Bash(timeout 5 node src/index.js)",
+      "Bash(mkdir -p \"C:/Users/vanes/Desktop/Aura/Plugins/UnrealGuide/Source/UnrealGuide/Private\")",
+      "Bash(mkdir -p \"C:/Users/vanes/Desktop/Aura/Plugins/UnrealGuide/Source/UnrealGuide/Public\")",
+      "Bash(mkdir -p \"C:/Users/vanes/Desktop/Aura/Plugins/UnrealGuide/Resources\")",
+      "Bash(node -e \"require\\(''./src/ai/guide''\\); console.log\\(''Module loads OK''\\)\")",
+      "Bash(npm view:*)",
+      "Bash(node -e \"const sdk = require\\(''@botpress/sdk''\\); console.log\\(Object.keys\\(sdk\\).join\\('', ''\\)\\)\")",
+      "Bash(npx tsc:*)",
+      "Bash(npx @botpress/cli deploy --bot-id 48878631-ed98-4100-9996-b7acfbeb480b --token bp_pat_wZtU3d3OV4TGSTYR0E9qxVBCLmYWbL7KEQFb)",
+      "Bash(npx @botpress/cli --help)",
+      "Read(//c/Users/vanes/Desktop/Unreal Professor/**)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

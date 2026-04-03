@@ -1,0 +1,53 @@
+{
+  "category": "string-types",
+  "displayName": "String Types",
+  "description": "UE5 string types: FString vs FName vs FText — when to use each, conversion, and common operations",
+  "entries": [
+    {
+      "id": "ref_str_001",
+      "title": "FString, FName, FText — When to Use Which",
+      "description": "UE5 has three string types that serve different purposes. FString is for general manipulation, FName is for fast comparison identifiers, and FText is for user-facing localized text.",
+      "whatItIs": "UE5's three string types each optimize for a different use case: FString is a mutable, heap-allocated string for general manipulation; FName is an immutable, hash-indexed identifier for fast comparison (used by the engine for asset names, bone names, tags); and FText is a localization-aware string for any text shown to the player.",
+      "whenToUse": [
+        "FString: building strings dynamically, parsing, file paths, debug logging, any string manipulation",
+        "FName: identifiers that need fast comparison — bone names, socket names, tags, DataTable row names, map keys",
+        "FText: anything the player sees — UI text, item names, dialogue, tooltips, notifications",
+        "Rule of thumb: FName for IDs, FText for display, FString for everything else"
+      ],
+      "whenNotToUse": [
+        "FString for identifiers compared frequently — FName is O(1) comparison vs FString's O(n)",
+        "FName for displayed text — FName is case-insensitive and not localizable",
+        "FText for internal identifiers — FText has localization overhead that's wasted for non-displayed strings",
+        "Raw TCHAR*/char* — always use the UE5 types for proper memory management and platform support"
+      ],
+      "relatedClasses": [
+        "FString",
+        "FName",
+        "FText",
+        "FStringFormatArg",
+        "FTextFormat",
+        "FCString",
+        "TCHAR"
+      ],
+      "commonMistakes": [
+        "Using FString for map keys or frequent comparisons — FName is orders of magnitude faster for lookups",
+        "Using FName for player-visible text — FName is case-insensitive (\"Sword\" == \"SWORD\") and cannot be localized",
+        "Forgetting the * when passing FString to UE_LOG: UE_LOG(LogTemp, Log, TEXT(\"%s\"), *MyString) — missing * crashes",
+        "Creating FNames at runtime in hot loops — FName construction involves a hash table lookup; cache the FName",
+        "Using FString::Printf when FText::Format should be used for UI — FText::Format supports localization and named arguments",
+        "Comparing FText with == directly — use FText::EqualTo() or FText::CompareTo() for locale-aware comparison"
+      ],
+      "keyPoints": [
+        "FString: mutable, heap-allocated. Supports: Printf, Append, Contains, Replace, Split, ToUpper/Lower, Len, IsEmpty",
+        "FName: immutable, hash-indexed. Created from string once, compared by hash. Case-insensitive. ~40 bytes.",
+        "FText: localization-aware. Created with LOCTEXT, NSLOCTEXT, FText::FromString, or FText::Format.",
+        "Conversions: FString → FName: FName(*Str). FName → FString: Name.ToString(). FString → FText: FText::FromString(Str).",
+        "FText::Format(LOCTEXT(\"Fmt\", \"{0} has {1} HP\"), PlayerName, Health): localization-safe formatting with arguments",
+        "LOCTEXT(\"Key\", \"Text\"): creates localizable FText. Requires LOCTEXT_NAMESPACE defined in the file.",
+        "TEXT(\"literal\"): creates a TCHAR* literal (not FString, FName, or FText — just raw text for macros)"
+      ],
+      "codeExample": "// FString — general manipulation\nFString PlayerName = TEXT(\"Hero\");\nFString Greeting = FString::Printf(TEXT(\"Welcome, %s! Level %d\"), *PlayerName, Level);\nbool bHasPrefix = Greeting.StartsWith(TEXT(\"Welcome\"));\nFString Upper = Greeting.ToUpper();\n\n// FName — fast identifier\nFName BoneName = TEXT(\"head\");\nFName SocketName = TEXT(\"weapon_r\");\nFName RowName = TEXT(\"Sword_01\");\nif (Hit.BoneName == BoneName) { /* headshot */ }\n\n// FText — player-facing UI text\n#define LOCTEXT_NAMESPACE \"MyGame\"\nFText WelcomeText = LOCTEXT(\"WelcomeMsg\", \"Welcome to the game!\");\nFText DamageText = FText::Format(\n    LOCTEXT(\"DamageFmt\", \"{0} dealt {1} damage to {2}\"),\n    FText::FromString(AttackerName),\n    FText::AsNumber(DamageAmount),\n    FText::FromString(VictimName)\n);\n#undef LOCTEXT_NAMESPACE\n\n// Conversions\nFString Str = TEXT(\"Hello\");\nFName Name = FName(*Str);           // FString -> FName\nFString Back = Name.ToString();     // FName -> FString\nFText Txt = FText::FromString(Str); // FString -> FText\nFString FromTxt = Txt.ToString();   // FText -> FString",
+      "tags": ["fstring", "fname", "ftext", "string", "text", "name", "localization", "loctext", "conversion"]
+    }
+  ]
+}

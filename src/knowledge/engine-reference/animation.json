@@ -1,0 +1,277 @@
+{
+  "category": "animation",
+  "displayName": "Animation System",
+  "description": "UE5 animation: AnimInstance, AnimBlueprints, Montages, AnimNotifies, BlendSpaces, State Machines, and IK",
+  "entries": [
+    {
+      "id": "ref_anim_001",
+      "title": "Animation System Overview",
+      "description": "UE5's animation system centers around the AnimInstance (Anim Blueprint) which drives a SkeletalMeshComponent. It combines state machines, blend spaces, montages, and procedural animation.",
+      "whatItIs": "The UAnimInstance class and its visual counterpart (Animation Blueprint) form the core of UE5's skeletal animation pipeline. They evaluate an AnimGraph every frame to produce the final skeletal pose for a SkeletalMeshComponent.",
+      "whenToUse": [
+        "Any project that uses skeletal mesh characters or creatures that need to be animated",
+        "When you need to blend multiple animations together based on gameplay state",
+        "When characters need locomotion, combat, or any gameplay-driven animation"
+      ],
+      "whenNotToUse": [
+        "Simple UI animations or widget transitions — use UMG animations instead",
+        "Static meshes that only need basic transform animation — use Sequencer or Timelines",
+        "Paper2D or sprite-based projects that do not use skeletal meshes"
+      ],
+      "relatedClasses": [
+        "UAnimInstance",
+        "USkeletalMeshComponent",
+        "UAnimBlueprint",
+        "USkeleton",
+        "UAnimSequence",
+        "ACharacter",
+        "UCharacterMovementComponent"
+      ],
+      "commonMistakes": [
+        "Setting animation variables in Tick instead of NativeUpdateAnimation — use NativeUpdateAnimation so updates stay in sync with the animation thread",
+        "Creating one Anim Blueprint and sharing it across incompatible skeletons — each Anim Blueprint is bound to a specific USkeleton",
+        "Doing heavy game logic in the AnimBP EventGraph — keep it lightweight; only read/set variables, do real logic in the Character class",
+        "Forgetting to call Super::NativeUpdateAnimation(DeltaSeconds) when overriding in C++",
+        "Accessing the AnimInstance before the mesh component is initialized (e.g., in the constructor)"
+      ],
+      "keyPoints": [
+        "UAnimInstance: the C++ base class for Anim Blueprints. Override NativeUpdateAnimation() for logic.",
+        "Anim Blueprint: visual graph that determines which animations play. Created per skeleton.",
+        "SkeletalMeshComponent: the component that owns the AnimInstance and renders the skeleton.",
+        "GetAnimInstance(): access the AnimInstance from the mesh component.",
+        "AnimGraph: the final output graph that produces the pose each frame.",
+        "EventGraph: runs logic each frame (update variables used by the AnimGraph).",
+        "Key variables to drive animation: Speed, Direction, bIsInAir, bIsCrouching — set from Character."
+      ],
+      "codeExample": "// Custom AnimInstance in C++\nUCLASS()\nclass UMyAnimInstance : public UAnimInstance {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(BlueprintReadOnly, Category=\"Movement\")\n    float Speed;\n    \n    UPROPERTY(BlueprintReadOnly, Category=\"Movement\")\n    bool bIsInAir;\n    \n    UPROPERTY(BlueprintReadOnly, Category=\"Movement\")\n    float Direction;\n    \n    virtual void NativeUpdateAnimation(float DeltaSeconds) override {\n        APawn* Pawn = TryGetPawnOwner();\n        if (!Pawn) return;\n        \n        Speed = Pawn->GetVelocity().Size();\n        bIsInAir = Pawn->GetMovementComponent()->IsFalling();\n        Direction = CalculateDirection(Pawn->GetVelocity(), Pawn->GetActorRotation());\n    }\n};",
+      "tags": ["animation", "anim instance", "anim blueprint", "skeletal mesh", "overview"]
+    },
+    {
+      "id": "ref_anim_002",
+      "title": "Animation Montages",
+      "description": "Montages are animation assets that give code control over playback. They support sections, branching, blending, and root motion. Perfect for attacks, reloads, emotes, and any action triggered from gameplay.",
+      "whatItIs": "UAnimMontage is an animation asset that wraps one or more animation sequences into a controllable, sectionable, and slottable package. It allows gameplay code to directly trigger, stop, and branch animation playback at runtime.",
+      "whenToUse": [
+        "Attacks, combos, and melee systems where you need programmatic control over which section plays next",
+        "One-shot actions triggered by gameplay code such as reloading, dodging, emotes, or interacting",
+        "When you need OnCompleted or OnInterrupted callbacks tied to an animation",
+        "Root motion-driven movement like dodge rolls or lunges",
+        "Layered animations that should play on top of locomotion via slots"
+      ],
+      "whenNotToUse": [
+        "Continuous locomotion blending — use Blend Spaces instead",
+        "Smooth cyclical state transitions like Idle to Walk to Run — use State Machines with blend transitions",
+        "Additive aim offsets — use Aim Offset Blend Spaces",
+        "Animations that never need code-driven branching or callbacks — a simple AnimSequence in a State Machine is simpler"
+      ],
+      "relatedClasses": [
+        "UAnimMontage",
+        "UAnimInstance",
+        "FAnimMontageInstance",
+        "FOnMontageEnded",
+        "FOnMontageBlendingOut",
+        "UAnimNotify",
+        "FAlphaBlend"
+      ],
+      "commonMistakes": [
+        "Forgetting to assign the montage to a Slot in the AnimGraph — the montage plays but produces no visible result because no Slot node consumes it",
+        "Not checking the return value of Montage_Play — it returns 0.0 if playback fails (e.g., null montage, no mesh)",
+        "Playing a new montage without stopping the previous one when they share the same slot, causing unintended blending",
+        "Using Montage_JumpToSection with an incorrect section name — section names are case-sensitive",
+        "Setting Blend Out time to 0 and getting a jarring pop back to the base pose"
+      ],
+      "keyPoints": [
+        "PlayAnimMontage(Montage, Rate, StartSection): play from character or AnimInstance",
+        "Montage_Play(), Montage_Stop(), Montage_Pause(): AnimInstance control",
+        "Sections: named segments within a montage. Jump between them for combo systems.",
+        "Montage_JumpToSection(SectionName): skip to a section (combo chaining)",
+        "Slots: montages play in a slot that blends with the base animation. Multiple slots for layers.",
+        "OnMontageEnded / OnMontageBlendingOut: delegates to know when the montage finishes",
+        "Root Motion: montage can drive character movement from the animation data",
+        "Blend In/Out times: configurable per montage for smooth transitions"
+      ],
+      "codeExample": "// Play attack montage\nvoid AMyCharacter::Attack() {\n    if (UAnimInstance* Anim = GetMesh()->GetAnimInstance()) {\n        float Duration = Anim->Montage_Play(AttackMontage, 1.0f);\n        \n        // Get notified when it ends\n        FOnMontageEnded EndDelegate;\n        EndDelegate.BindUObject(this, &AMyCharacter::OnAttackEnd);\n        Anim->Montage_SetEndDelegate(EndDelegate, AttackMontage);\n    }\n}\n\nvoid AMyCharacter::OnAttackEnd(UAnimMontage* Montage, bool bInterrupted) {\n    bIsAttacking = false;\n    if (!bInterrupted) {\n        // Attack completed successfully\n    }\n}\n\n// Combo system — jump to next section\nvoid AMyCharacter::ComboNext() {\n    if (UAnimInstance* Anim = GetMesh()->GetAnimInstance()) {\n        Anim->Montage_JumpToSection(TEXT(\"Combo2\"), AttackMontage);\n    }\n}",
+      "tags": ["montage", "anim montage", "play", "section", "combo", "slot", "root motion", "blend"]
+    },
+    {
+      "id": "ref_anim_003",
+      "title": "Anim Notifies & Notify States",
+      "description": "Anim Notifies fire events at specific points in an animation. Use them to sync gameplay events (spawn projectile, play sound, enable hitbox) with animation frames.",
+      "whatItIs": "UAnimNotify and UAnimNotifyState are event hooks embedded in animation assets (sequences and montages) that fire at specific frames or over frame ranges. They bridge the gap between animation timing and gameplay logic.",
+      "whenToUse": [
+        "Triggering gameplay effects at precise animation frames — e.g., spawning a projectile at the exact release frame of a throw",
+        "Playing sounds or VFX synced to footsteps, impacts, or weapon swings",
+        "Enabling and disabling hit detection windows during melee attacks (NotifyState)",
+        "Camera shakes, controller rumble, or other feedback tied to animation timing",
+        "Any event that must happen at a specific point in an animation rather than at start or end"
+      ],
+      "whenNotToUse": [
+        "Logic that should happen at montage start or end — use OnMontageStarted/OnMontageEnded delegates instead",
+        "Continuous per-frame logic unrelated to a specific animation — use Tick or NativeUpdateAnimation",
+        "Events that depend on game state rather than animation timing — use gameplay timers or ability system tasks"
+      ],
+      "relatedClasses": [
+        "UAnimNotify",
+        "UAnimNotifyState",
+        "UAnimSequenceBase",
+        "UAnimMontage",
+        "USkeletalMeshComponent",
+        "FAnimNotifyEvent",
+        "FAnimNotifyEventReference"
+      ],
+      "commonMistakes": [
+        "Placing notifies on animations that get blended out — the notify may not fire if the animation weight drops below the notify trigger threshold",
+        "Putting heavy game logic directly in the notify instead of delegating to the owning actor or a subsystem",
+        "Forgetting to call Super in NotifyBegin/NotifyEnd when subclassing UAnimNotifyState",
+        "Not handling the case where NotifyEnd fires without NotifyBegin (e.g., montage interrupted mid-state) — always guard against unmatched begin/end pairs",
+        "Using Blueprint string-based notifies for performance-critical paths — native C++ notifies are significantly faster"
+      ],
+      "keyPoints": [
+        "AnimNotify: fires at a single frame. Override Notify() in C++ or add in the montage/sequence editor.",
+        "AnimNotifyState: fires over a range of frames. Has NotifyBegin(), NotifyTick(), NotifyEnd().",
+        "Built-in notifies: PlaySound, PlayParticleEffect — add from the timeline in the animation editor.",
+        "Custom C++ notify: subclass UAnimNotify, override Notify(USkeletalMeshComponent*, UAnimSequenceBase*)",
+        "Custom notify state: subclass UAnimNotifyState for windows (e.g., 'weapon active' during swing)",
+        "Blueprint notifies: create in montage editor > Add Notify > New Notify. Handle in AnimBP EventGraph.",
+        "Notify names appear in the AnimInstance as events you can bind to",
+        "Use for: damage windows, footstep sounds, spawning projectiles, trail effects, camera shakes"
+      ],
+      "codeExample": "// Custom AnimNotify for spawning a projectile at the right frame\nUCLASS()\nclass UAnimNotify_SpawnProjectile : public UAnimNotify {\n    GENERATED_BODY()\npublic:\n    UPROPERTY(EditAnywhere)\n    TSubclassOf<AProjectile> ProjectileClass;\n    \n    UPROPERTY(EditAnywhere)\n    FName SocketName = TEXT(\"Muzzle\");\n    \n    virtual void Notify(USkeletalMeshComponent* MeshComp,\n        UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventRef) override {\n        \n        AActor* Owner = MeshComp->GetOwner();\n        if (!Owner || !ProjectileClass) return;\n        \n        FVector Loc = MeshComp->GetSocketLocation(SocketName);\n        FRotator Rot = MeshComp->GetSocketRotation(SocketName);\n        Owner->GetWorld()->SpawnActor<AProjectile>(ProjectileClass, Loc, Rot);\n    }\n};\n\n// AnimNotifyState for melee damage window\nUCLASS()\nclass UAnimNotifyState_MeleeWindow : public UAnimNotifyState {\n    GENERATED_BODY()\npublic:\n    virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Anim, float TotalDuration, const FAnimNotifyEventReference& EventRef) override {\n        if (AMyCharacter* Char = Cast<AMyCharacter>(MeshComp->GetOwner()))\n            Char->EnableWeaponCollision(true);\n    }\n    virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Anim, const FAnimNotifyEventReference& EventRef) override {\n        if (AMyCharacter* Char = Cast<AMyCharacter>(MeshComp->GetOwner()))\n            Char->EnableWeaponCollision(false);\n    }\n};",
+      "tags": ["anim notify", "notify state", "animation event", "damage window", "footstep", "sound", "projectile"]
+    },
+    {
+      "id": "ref_anim_004",
+      "title": "Blend Spaces",
+      "description": "Blend Spaces smoothly blend between multiple animations based on input parameters. Essential for locomotion — blending walk/run/strafe based on speed and direction.",
+      "whatItIs": "UBlendSpace (2D) and UBlendSpace1D are animation assets that interpolate between multiple sample animations based on one or two continuous input parameters. They produce a smooth, blended pose that responds dynamically to gameplay variables like speed and direction.",
+      "whenToUse": [
+        "Locomotion systems that need smooth transitions between idle, walk, run, and strafe animations",
+        "Any situation where animation should vary continuously with one or two numeric parameters",
+        "8-directional movement using Speed and Direction axes",
+        "Aim offsets for upper-body look direction (pitch and yaw)"
+      ],
+      "whenNotToUse": [
+        "Discrete state changes like Idle to Jumping — use a State Machine with explicit transitions",
+        "One-shot triggered animations like attacks or emotes — use Montages",
+        "When you have more than two input dimensions — blend spaces only support 1D or 2D; consider layered blending or custom blend nodes",
+        "Animations that need branching or section control — use Montages"
+      ],
+      "relatedClasses": [
+        "UBlendSpace",
+        "UBlendSpace1D",
+        "UAimOffsetBlendSpace",
+        "UAimOffsetBlendSpace1D",
+        "UAnimSequence",
+        "UAnimInstance",
+        "FBlendSampleData"
+      ],
+      "commonMistakes": [
+        "Not setting axis ranges correctly — if your Speed goes 0-600 but the axis is 0-1, blending will be wrong",
+        "Placing sample points too far apart with too few samples, causing obvious interpolation artifacts",
+        "Forgetting to enable axis smoothing, leading to jittery transitions when input values change rapidly",
+        "Using raw 3D velocity magnitude instead of 2D horizontal speed, causing vertical movement (falling) to influence locomotion blend",
+        "Mixing animations with different root motion settings in the same blend space — either all samples should have root motion or none"
+      ],
+      "keyPoints": [
+        "BlendSpace 1D: blends along a single axis (e.g., Speed: Idle → Walk → Run)",
+        "BlendSpace 2D: blends along two axes (e.g., Speed + Direction for 8-directional movement)",
+        "Create: Content Browser > Animation > Blend Space (or Blend Space 1D)",
+        "Axis parameters: map to AnimBP variables (Speed, Direction) set from character movement",
+        "Sample points: place animations at positions on the grid. Engine interpolates between nearest samples.",
+        "Smoothing: enable axis smoothing for gradual transitions between samples",
+        "In AnimGraph: use a BlendSpace Player node, connect axis inputs from your variables",
+        "Aim Offset: a special blend space for additive aim animations (look up/down, left/right)"
+      ],
+      "codeExample": "// Setting up variables for a 2D blend space in AnimInstance\nvirtual void NativeUpdateAnimation(float DeltaSeconds) override {\n    APawn* Pawn = TryGetPawnOwner();\n    if (!Pawn) return;\n    \n    // Speed for blend space X or Y axis\n    FVector Velocity = Pawn->GetVelocity();\n    Speed = Velocity.Size2D(); // horizontal speed only\n    \n    // Direction for 8-way blend space (-180 to 180)\n    Direction = CalculateDirection(Velocity, Pawn->GetActorRotation());\n    \n    // These variables feed into the BlendSpace node in the AnimGraph\n}\n\n// Typical 2D Blend Space layout:\n// Direction: -180 to 180 (left, forward, right, backward)\n// Speed: 0 to 600\n// Samples: Idle(0,0), WalkFwd(150,0), RunFwd(600,0),\n//          WalkLeft(150,-90), RunLeft(600,-90), etc.",
+      "tags": ["blend space", "locomotion", "blend", "direction", "speed", "aim offset", "2d", "1d"]
+    },
+    {
+      "id": "ref_anim_005",
+      "title": "Animation State Machines",
+      "description": "State Machines in the AnimGraph manage transitions between animation states (Idle, Walking, Running, Jumping, Falling, Landing). Each state can contain a full animation graph.",
+      "whatItIs": "Animation State Machines are visual graphs within the AnimGraph that define a set of discrete animation states and the transition rules between them. Each state produces a pose, and the engine evaluates transition conditions every frame to determine when to switch states.",
+      "whenToUse": [
+        "Defining distinct movement modes like Idle, Walk, Run, Jump, Fall, Land with clear transitions",
+        "When animation behavior maps cleanly to a finite set of named states",
+        "Separating upper-body and lower-body animation into independent state machines with layered blending",
+        "Complex character behaviors where transitions have specific blend durations and curves"
+      ],
+      "whenNotToUse": [
+        "Continuous parameter-driven blending (e.g., speed-based locomotion) — use Blend Spaces inside states instead of separate states for each speed",
+        "Single one-shot animations triggered from code — use Montages",
+        "Very simple characters with only one or two animations — a direct AnimSequence player or Blend Space is simpler"
+      ],
+      "relatedClasses": [
+        "UAnimInstance",
+        "UAnimGraphNode_StateMachine",
+        "UAnimStateNode",
+        "UAnimStateTransitionNode",
+        "FAnimNode_StateMachine",
+        "UBlendSpace",
+        "UAnimMontage"
+      ],
+      "commonMistakes": [
+        "Creating too many states for what should be a Blend Space — e.g., separate WalkSlow/WalkMedium/WalkFast states instead of one state with a 1D Blend Space",
+        "Not setting appropriate blend times on transitions, causing pops or sluggish state changes",
+        "Circular transitions without proper conditions, causing rapid flickering between states",
+        "Forgetting the entry state — the state machine needs a default entry point or it produces no pose",
+        "Evaluating expensive logic in transition rules that run every frame — keep transition conditions lightweight"
+      ],
+      "keyPoints": [
+        "States: each state outputs a pose (animation, blend space, or sub-graph)",
+        "Transitions: directed edges between states with boolean conditions (e.g., Speed > 0 → Walking)",
+        "Transition rules: Blueprint graph that returns true/false. Evaluated every frame.",
+        "Automatic transition rules: can use remaining time, state weight, etc.",
+        "Blend settings per transition: duration, blend curve, blend mode",
+        "Conduits: logic nodes that can route to multiple states from one transition check",
+        "Entry state: the default state when the state machine starts",
+        "Multiple state machines: use for different body parts (upper body, lower body) with layered blending"
+      ],
+      "tags": ["state machine", "transition", "state", "idle", "walk", "run", "jump", "blend"]
+    },
+    {
+      "id": "ref_anim_006",
+      "title": "Skeletal Mesh Sockets & Attachment",
+      "description": "Sockets are named points on a skeleton where you can attach actors or components (weapons, shields, hats, VFX). Essential for equipment and visual effects.",
+      "whatItIs": "Sockets are named transform points defined on specific bones of a USkeleton. They move with the bone during animation and provide stable attachment points for actors, components, and effects without requiring exact bone names or manual offset calculations.",
+      "whenToUse": [
+        "Attaching weapons, shields, or tools to a character's hands",
+        "Spawning VFX or projectiles at specific body locations like a muzzle or staff tip",
+        "Attaching cosmetic items like hats, backpacks, or armor pieces to a character",
+        "Querying world-space positions of body parts at runtime for gameplay logic (e.g., line traces from eyes)"
+      ],
+      "whenNotToUse": [
+        "Attaching to non-skeletal (static) meshes — use scene component attachment points instead",
+        "When you need physics-driven attachment — use physical constraints or physics assets",
+        "If the attachment point does not move with a bone — use a regular SceneComponent attached to the actor root"
+      ],
+      "relatedClasses": [
+        "USkeletalMeshSocket",
+        "USkeletalMeshComponent",
+        "USkeleton",
+        "FAttachmentTransformRules",
+        "UStaticMeshComponent",
+        "USceneComponent",
+        "AActor"
+      ],
+      "commonMistakes": [
+        "Using the wrong socket or bone name — socket names are case-sensitive FNames; a typo silently attaches at the origin",
+        "Forgetting to set the correct FAttachmentTransformRules — SnapToTarget vs KeepWorld produces very different results",
+        "Adding sockets to the mesh instead of the skeleton — skeleton sockets are shared across all meshes using that skeleton, which is usually what you want",
+        "Not previewing the socket transform in the Skeleton Editor before using it in code — offset and rotation may need adjustment",
+        "Attaching before the skeletal mesh component is fully initialized, causing the attachment to fail silently"
+      ],
+      "keyPoints": [
+        "Add sockets in: Skeleton Editor > right-click bone > Add Socket",
+        "GetSocketLocation(SocketName): world location of the socket",
+        "GetSocketRotation(SocketName): world rotation of the socket",
+        "GetSocketTransform(SocketName): full transform",
+        "AttachToComponent(MeshComp, Rules, SocketName): attach an actor/component to a socket",
+        "Common sockets: 'weapon_r' (right hand), 'weapon_l' (left hand), 'head', 'muzzle'",
+        "Preview in editor: drag a static mesh onto a socket in the Skeleton Editor to preview attachment"
+      ],
+      "codeExample": "// Attach weapon to character's hand socket\nvoid AMyCharacter::EquipWeapon(AWeapon* Weapon) {\n    Weapon->AttachToComponent(\n        GetMesh(),\n        FAttachmentTransformRules::SnapToTargetNotIncludingScale,\n        TEXT(\"weapon_r\")  // Socket name\n    );\n}\n\n// Spawn muzzle flash at socket\nvoid AMyWeapon::Fire() {\n    FVector MuzzleLoc = WeaponMesh->GetSocketLocation(TEXT(\"Muzzle\"));\n    FRotator MuzzleRot = WeaponMesh->GetSocketRotation(TEXT(\"Muzzle\"));\n    UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), MuzzleFlashFX, MuzzleLoc, MuzzleRot);\n}",
+      "tags": ["socket", "attachment", "weapon", "equip", "bone", "skeletal mesh", "attach"]
+    }
+  ]
+}

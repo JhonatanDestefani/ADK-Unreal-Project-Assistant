@@ -1,0 +1,98 @@
+{
+  "category": "movement-components",
+  "displayName": "Movement Components",
+  "description": "UE5 movement: CharacterMovementComponent deep-dive, custom movement modes, FloatingPawnMovement, ProjectileMovement, and flying/swimming",
+  "entries": [
+    {
+      "id": "ref_move_001",
+      "title": "CharacterMovementComponent — Deep Dive",
+      "description": "UCharacterMovementComponent is the most complex and powerful movement component in UE5. It handles walking, jumping, falling, flying, swimming, crouching, and network prediction out of the box.",
+      "whatItIs": "UCharacterMovementComponent is a specialized movement component for ACharacter that provides ground movement with gravity, jumping, air control, swimming, flying, crouching, and full client-side prediction for multiplayer. It is the most feature-complete movement solution in UE5.",
+      "whenToUse": [
+        "Any humanoid character that needs walking, jumping, falling, and gravity",
+        "Multiplayer games that need client-side movement prediction and server correction",
+        "Characters that need swimming, flying, or crouching without custom implementation",
+        "When you need built-in slope handling, step-up, and floor detection"
+      ],
+      "whenNotToUse": [
+        "Vehicles — use UWheeledVehicleMovementComponent or custom physics",
+        "Top-down characters that don't need gravity or jumping — UFloatingPawnMovement is simpler",
+        "Projectiles — use UProjectileMovementComponent",
+        "Fully physics-driven actors — use SetSimulatePhysics directly"
+      ],
+      "relatedClasses": [
+        "UCharacterMovementComponent",
+        "ACharacter",
+        "UPawnMovementComponent",
+        "UFloatingPawnMovement",
+        "UProjectileMovementComponent",
+        "FRootMotionSource",
+        "FSavedMove_Character"
+      ],
+      "commonMistakes": [
+        "Setting MaxWalkSpeed in BeginPlay but it gets overridden by the Blueprint default — set it in the constructor or use a variable",
+        "Not understanding movement modes — Walking, Falling, Swimming, Flying, Custom are mutually exclusive states",
+        "Calling AddMovementInput without a controller possessing the pawn — movement input requires a controller",
+        "Modifying velocity directly instead of using AddForce/AddImpulse or LaunchCharacter — direct modification breaks prediction",
+        "Forgetting that JumpZVelocity is the initial launch velocity, not continuous upward force",
+        "Not overriding GetMaxSpeed() when adding custom movement modes — AI pathfinding uses this to estimate travel time"
+      ],
+      "keyPoints": [
+        "MaxWalkSpeed, MaxFlySpeed, MaxSwimSpeed: speed caps per movement mode",
+        "JumpZVelocity: initial vertical speed when jumping. AirControl: how much the player can steer mid-air (0-1).",
+        "GravityScale: multiplier on world gravity. Set to 0 for zero-G.",
+        "bOrientRotationToMovement: character rotates to face movement direction (third-person). RotationRate controls speed.",
+        "bUseControllerDesiredRotation: character rotates to face controller direction (first-person style).",
+        "LaunchCharacter(Velocity, bXYOverride, bZOverride): launch the character with an impulse (jump pads, explosions).",
+        "SetMovementMode(EMovementMode): switch between Walking, Flying, Swimming, Custom.",
+        "Custom movement: SetMovementMode(MOVE_Custom, CustomMode) + override PhysCustom() for your own physics.",
+        "Crouch(): built-in crouching with capsule resize. bCanCrouch must be true.",
+        "NavMovement: AI uses this component for pathfinding via MoveToLocation/MoveToActor."
+      ],
+      "codeExample": "// Character with configured movement\nAMyCharacter::AMyCharacter() {\n    GetCharacterMovement()->MaxWalkSpeed = 600.f;\n    GetCharacterMovement()->JumpZVelocity = 500.f;\n    GetCharacterMovement()->AirControl = 0.2f;\n    GetCharacterMovement()->GravityScale = 1.0f;\n    GetCharacterMovement()->bCanCrouch = true;\n    GetCharacterMovement()->bOrientRotationToMovement = true;\n    GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);\n}\n\n// Sprint\nvoid AMyCharacter::StartSprint() {\n    GetCharacterMovement()->MaxWalkSpeed = 1000.f;\n}\nvoid AMyCharacter::StopSprint() {\n    GetCharacterMovement()->MaxWalkSpeed = 600.f;\n}\n\n// Launch (jump pad)\nvoid AJumpPad::OnOverlap(AActor* OtherActor) {\n    if (ACharacter* Char = Cast<ACharacter>(OtherActor)) {\n        Char->LaunchCharacter(FVector(0, 0, 1500.f), false, true);\n    }\n}\n\n// Toggle flying\nvoid AMyCharacter::ToggleFly() {\n    if (GetCharacterMovement()->MovementMode == MOVE_Flying) {\n        GetCharacterMovement()->SetMovementMode(MOVE_Walking);\n    } else {\n        GetCharacterMovement()->SetMovementMode(MOVE_Flying);\n    }\n}",
+      "tags": ["character movement", "walk", "jump", "fly", "swim", "crouch", "air control", "gravity", "sprint", "launch"]
+    },
+    {
+      "id": "ref_move_002",
+      "title": "Projectile & Floating Movement Components",
+      "description": "UProjectileMovementComponent handles ballistic movement for projectiles. UFloatingPawnMovement provides simple gravity-free movement for top-down or flying pawns.",
+      "whatItIs": "UProjectileMovementComponent simulates projectile physics (initial speed, gravity, homing, bouncing) without full physics simulation. UFloatingPawnMovement provides basic acceleration-based movement without gravity for simple pawns like top-down characters or spectator cameras.",
+      "whenToUse": [
+        "ProjectileMovement: bullets, rockets, grenades, thrown objects — anything with an initial velocity and optional gravity",
+        "ProjectileMovement: homing missiles that track a target",
+        "FloatingPawnMovement: top-down characters, RTS units, spectator cameras, simple AI pawns",
+        "FloatingPawnMovement: any pawn that doesn't need gravity, jumping, or complex ground detection"
+      ],
+      "whenNotToUse": [
+        "ProjectileMovement: for physics-driven objects that need to interact with the physics world (bouncing off dynamic objects) — use SetSimulatePhysics",
+        "FloatingPawnMovement: for characters that need gravity, jumping, or crouching — use CharacterMovementComponent",
+        "Hitscan weapons: don't need a projectile component at all — use a line trace"
+      ],
+      "relatedClasses": [
+        "UProjectileMovementComponent",
+        "UFloatingPawnMovement",
+        "UCharacterMovementComponent",
+        "UPawnMovementComponent",
+        "APawn",
+        "ACharacter"
+      ],
+      "commonMistakes": [
+        "Not setting InitialSpeed on ProjectileMovement — the projectile spawns and doesn't move",
+        "Forgetting that ProjectileMovement needs a root component with collision — without collision the projectile passes through everything",
+        "Setting bShouldBounce without an OnProjectileBounce handler — the projectile bounces forever",
+        "Using ProjectileMovement for hitscan weapons — just use a line trace, it's instant and cheaper",
+        "Not setting MaxSpeed on FloatingPawnMovement — the pawn accelerates indefinitely"
+      ],
+      "keyPoints": [
+        "ProjectileMovement: InitialSpeed, MaxSpeed, Gravity (ProjectileGravityScale), bShouldBounce, Bounciness",
+        "Homing: bIsHomingProjectile, HomingTargetComponent, HomingAccelerationMagnitude",
+        "OnProjectileStop: delegate when the projectile hits and stops. OnProjectileBounce: on each bounce.",
+        "Velocity: read/set via Velocity property. SetVelocityInLocalSpace() for relative directions.",
+        "FloatingPawnMovement: MaxSpeed, Acceleration, Deceleration, TurningBoost",
+        "AddInputVector(): the standard way to move a FloatingPawn — call from your Pawn's movement input handler"
+      ],
+      "codeExample": "// Projectile with homing\nAMyProjectile::AMyProjectile() {\n    SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT(\"Sphere\"));\n    SetRootComponent(SphereComp);\n    \n    ProjectileComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT(\"Projectile\"));\n    ProjectileComp->InitialSpeed = 3000.f;\n    ProjectileComp->MaxSpeed = 3000.f;\n    ProjectileComp->ProjectileGravityScale = 0.f; // No gravity\n    ProjectileComp->bIsHomingProjectile = true;\n    ProjectileComp->HomingAccelerationMagnitude = 5000.f;\n    \n    SetLifeSpan(5.f);\n}\n\nvoid AMyProjectile::SetHomingTarget(AActor* Target) {\n    if (Target) {\n        ProjectileComp->HomingTargetComponent = Target->GetRootComponent();\n    }\n}\n\n// Top-down pawn with floating movement\nAMyTopDownPawn::AMyTopDownPawn() {\n    FloatingMovement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT(\"Movement\"));\n    FloatingMovement->MaxSpeed = 800.f;\n    FloatingMovement->Acceleration = 2000.f;\n    FloatingMovement->Deceleration = 2000.f;\n}",
+      "tags": ["projectile", "floating pawn", "movement component", "homing", "bounce", "top down", "initial speed"]
+    }
+  ]
+}

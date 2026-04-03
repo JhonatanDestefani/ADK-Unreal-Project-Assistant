@@ -1,0 +1,142 @@
+{
+  "category": "niagara",
+  "displayName": "Niagara Particle System",
+  "description": "UE5 Niagara: particle systems, emitters, modules, data interfaces, spawning from code, and GPU simulation",
+  "entries": [
+    {
+      "id": "ref_niagara_001",
+      "title": "Niagara Overview",
+      "description": "Niagara is UE5's modular VFX system replacing Cascade. It uses a stack-based architecture with Emitters and Modules for creating particle effects like fire, smoke, sparks, magic, weather, and more.",
+      "whatItIs": "UE5's primary VFX framework that replaces the legacy Cascade system. Niagara uses a modular, stack-based architecture where Systems contain Emitters, and Emitters contain reusable Modules that define particle behavior across spawn, update, and render stages. It supports both CPU and GPU simulation.",
+      "whenToUse": [
+        "Creating any visual effect: fire, smoke, sparks, explosions, magic, weather, blood splatter, debris",
+        "When you need data-driven VFX that artists can author and iterate on without code changes",
+        "Effects that need to interact with the game world via Data Interfaces (mesh sampling, skeletal mesh, collisions)",
+        "Large-scale effects with thousands or millions of particles using GPU simulation"
+      ],
+      "whenNotToUse": [
+        "Simple material-only effects like screen distortion or fullscreen post-process — use a Post Process Material instead",
+        "Decals (bullet holes, blood splatters on surfaces) — use UDecalComponent, though Niagara can spawn decal-like particles",
+        "Static mesh-based destruction — use the Chaos Destruction system or Geometry Collection instead",
+        "When you only need a single animated sprite — a Flipbook material on a plane may be simpler"
+      ],
+      "relatedClasses": [
+        "UNiagaraSystem",
+        "UNiagaraEmitter",
+        "UNiagaraComponent",
+        "UNiagaraFunctionLibrary",
+        "UNiagaraDataInterfaceBase",
+        "UNiagaraScript",
+        "UNiagaraParameterCollection"
+      ],
+      "commonMistakes": [
+        "Using Cascade in new UE5 projects instead of Niagara — Cascade is deprecated and receives no new features",
+        "Running everything on CPU when GPU simulation would handle the particle count much more efficiently",
+        "Creating monolithic emitters instead of splitting effects into multiple emitters (sparks + smoke + fire as separate emitters within one system)",
+        "Not understanding the stack execution order (Emitter Spawn -> Emitter Update -> Particle Spawn -> Particle Update -> Render) and placing modules in the wrong group",
+        "Forgetting to set Fixed Bounds on systems to avoid per-frame bounds recalculation, which is expensive"
+      ],
+      "keyPoints": [
+        "Niagara System: the top-level asset. Contains one or more Emitters.",
+        "Niagara Emitter: defines one stream of particles (e.g., sparks, smoke, flames as separate emitters).",
+        "Modules: reusable logic blocks stacked in each emitter (Spawn Rate, Lifetime, Velocity, Color, Size, etc.).",
+        "Stack groups: Emitter Spawn, Emitter Update, Particle Spawn, Particle Update, Render",
+        "Sim Targets: CPU (flexible, slower for large counts) or GPU (fast, millions of particles)",
+        "Replaces Cascade (legacy). New projects should use Niagara exclusively.",
+        "Data Interfaces: connect Niagara to external data (meshes, skeletal meshes, audio, landscapes, collision)"
+      ],
+      "tags": ["niagara", "particle", "vfx", "emitter", "module", "gpu", "cascade"]
+    },
+    {
+      "id": "ref_niagara_002",
+      "title": "Spawning Niagara from Code",
+      "description": "How to spawn and control Niagara particle systems from C++ gameplay code. Essential for gameplay-driven VFX like muzzle flashes, impacts, abilities, and environmental effects.",
+      "whatItIs": "The C++ API for spawning and controlling Niagara particle systems at runtime. UNiagaraFunctionLibrary provides static helper functions for fire-and-forget and attached spawning, while UNiagaraComponent offers persistent control with parameter setting, activation, and deactivation.",
+      "whenToUse": [
+        "Spawning impact VFX at hit locations from weapon traces or projectile collisions",
+        "Attaching persistent effects to characters or vehicles (thruster flames, aura effects, trail particles)",
+        "Driving VFX parameters from gameplay values (explosion force, wind speed, character health)",
+        "Spawning one-shot effects like muzzle flashes, ability casts, or death explosions"
+      ],
+      "whenNotToUse": [
+        "Effects that are always present on an actor from the start — just add a UNiagaraComponent in the Blueprint or constructor and set bAutoActivate",
+        "When all VFX logic is handled by designers in Blueprints with no C++ gameplay trigger needed",
+        "Level-placed ambient effects (torches, waterfalls) — place them directly in the level editor"
+      ],
+      "relatedClasses": [
+        "UNiagaraFunctionLibrary",
+        "UNiagaraComponent",
+        "UNiagaraSystem",
+        "UNiagaraParameterCollectionInstance",
+        "FNiagaraVariable",
+        "UNiagaraDataInterfaceBase"
+      ],
+      "commonMistakes": [
+        "Not checking if the returned UNiagaraComponent is valid (nullptr) before setting parameters on it",
+        "Forgetting to set bAutoDestroy to true on fire-and-forget effects, causing invisible completed systems to linger in the world",
+        "Using the wrong variable name string in SetVariableFloat/Vec3 — names must match the User Parameters defined in the Niagara System exactly",
+        "Spawning a new system every frame instead of reusing a persistent UNiagaraComponent with Activate/Deactivate",
+        "Not calling Deactivate() before reactivating a persistent component, which can cause particle count to balloon"
+      ],
+      "keyPoints": [
+        "UNiagaraFunctionLibrary::SpawnSystemAtLocation(): fire-and-forget at a world position",
+        "UNiagaraFunctionLibrary::SpawnSystemAttached(): attached to a component (follows it)",
+        "UNiagaraComponent: persistent Niagara system on an actor. CreateDefaultSubobject or add at runtime.",
+        "SetVariableFloat/Vec3/Color/etc.: set user parameters on the Niagara system from code",
+        "SetNiagaraVariableFloat(Component, VarName, Value): set parameters on spawned systems",
+        "Activate() / Deactivate(): start/stop the system without destroying it",
+        "SetAutoDestroy(true): component destroys itself when the system completes",
+        "DestroyInstance(): immediately kill the system and all particles"
+      ],
+      "codeExample": "// Fire-and-forget impact effect\n#include \"NiagaraFunctionLibrary.h\"\n#include \"NiagaraComponent.h\"\n\nvoid AMyWeapon::SpawnImpactEffect(FVector Location, FVector Normal) {\n    UNiagaraComponent* NComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(\n        GetWorld(), ImpactNiagaraSystem, Location,\n        Normal.Rotation(), FVector(1.f), true, true // bAutoDestroy, bAutoActivate\n    );\n    if (NComp) {\n        NComp->SetVariableVec3(TEXT(\"ImpactNormal\"), Normal);\n        NComp->SetVariableFloat(TEXT(\"ImpactForce\"), 500.f);\n    }\n}\n\n// Persistent component on an actor\nUPROPERTY(VisibleAnywhere)\nUNiagaraComponent* ThrusterFX;\n\nAMyShip::AMyShip() {\n    ThrusterFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT(\"ThrusterFX\"));\n    ThrusterFX->SetupAttachment(RootComponent);\n    ThrusterFX->bAutoActivate = false;\n}\n\nvoid AMyShip::EngageThrusters() {\n    ThrusterFX->Activate();\n    ThrusterFX->SetVariableFloat(TEXT(\"ThrustPower\"), CurrentThrust);\n}",
+      "tags": ["niagara", "spawn", "code", "c++", "parameter", "component", "impact", "vfx"]
+    },
+    {
+      "id": "ref_niagara_003",
+      "title": "Common Niagara Modules & Parameters",
+      "description": "Key built-in modules and user-exposed parameters for creating standard VFX. Understanding these lets you configure systems from both the editor and code.",
+      "whatItIs": "The set of commonly used built-in Niagara modules that control particle spawning, movement, appearance, and rendering. These modules are stacked in emitters to define particle behavior and include Spawn Rate, Lifetime, Velocity, Gravity, Drag, Color, Size, Curl Noise, Collision, and various renderers.",
+      "whenToUse": [
+        "Building any standard particle effect — these modules are the fundamental building blocks",
+        "When you need physically-influenced particles with gravity, drag, and collision",
+        "Creating stylized effects with color-over-lifetime curves and size animation",
+        "Adding organic motion to effects using Curl Noise Force for smoke, fire, or magical effects"
+      ],
+      "whenNotToUse": [
+        "When you need highly custom behavior not covered by built-in modules — write a custom Niagara Module in the Module Script editor",
+        "For mesh-based destruction physics — use Chaos Destruction rather than trying to simulate it with Niagara mesh particles",
+        "When a simple material animation (flipbook, panner) achieves the same visual without the overhead of a particle system"
+      ],
+      "relatedClasses": [
+        "UNiagaraEmitter",
+        "UNiagaraSystem",
+        "UNiagaraScript",
+        "UNiagaraSpriteRendererProperties",
+        "UNiagaraMeshRendererProperties",
+        "UNiagaraRibbonRendererProperties",
+        "UNiagaraLightRendererProperties",
+        "UNiagaraRendererProperties"
+      ],
+      "commonMistakes": [
+        "Setting Spawn Rate extremely high without switching to GPU simulation, causing CPU performance drops",
+        "Using Collision with Scene Depth on CPU sim target — GPU collision queries require GPU sim",
+        "Forgetting to add a Renderer (Sprite, Mesh, or Ribbon) to the emitter, resulting in invisible particles",
+        "Not using Curl Noise Force for organic motion and instead manually randomizing velocity, which looks mechanical",
+        "Setting lifetime too high on burst effects, causing particles to linger long after the visual effect should be over"
+      ],
+      "keyPoints": [
+        "Spawn Rate: particles per second. Burst: spawn N particles at once.",
+        "Lifetime: how long each particle lives (fixed or random range).",
+        "Initial Velocity: starting speed/direction. Add Velocity from Point for explosions.",
+        "Gravity Force: pulls particles down (or any direction).",
+        "Drag: slows particles over time (air resistance).",
+        "Scale Sprite Size / Scale Mesh Size: grow/shrink over lifetime.",
+        "Color / Scale Color: set or animate color over lifetime (fire: yellow→orange→black).",
+        "Curl Noise Force: organic turbulence for smoke, fire, magic effects.",
+        "Collision: particles bounce off or die on world collision (Mesh Distance Fields or scene depth).",
+        "Sprite Renderer: billboard quads. Mesh Renderer: 3D meshes as particles. Ribbon Renderer: trails."
+      ],
+      "tags": ["niagara modules", "spawn rate", "lifetime", "velocity", "gravity", "drag", "color", "collision", "renderer"]
+    }
+  ]
+}

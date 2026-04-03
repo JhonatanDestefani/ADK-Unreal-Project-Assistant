@@ -1,0 +1,140 @@
+{
+  "category": "world-partition",
+  "displayName": "World Partition & Level Streaming",
+  "description": "UE5 world management: World Partition, Data Layers, Level Streaming, Level Instances, and open world architecture",
+  "entries": [
+    {
+      "id": "ref_wp_001",
+      "title": "World Partition Overview",
+      "description": "World Partition is UE5's system for managing large open worlds. It automatically divides the world into a grid and streams cells in/out based on player distance. Replaces Level Streaming for open-world games.",
+      "whatItIs": "World Partition is UE5's automatic world management system that divides a single persistent level into a grid of streaming cells, loading and unloading them based on distance from streaming sources, while using One Actor Per File (OFPA) to enable multi-user collaboration and HLOD for distant content representation.",
+      "whenToUse": [
+        "For open-world games with large seamless maps that cannot fit entirely in memory",
+        "When multiple developers need to edit the same world simultaneously without file conflicts (OFPA)",
+        "When you want automatic distance-based streaming without manual level boundary setup",
+        "For any project that benefits from HLOD generation for distant geometry"
+      ],
+      "whenNotToUse": [
+        "For small, contained levels that fit entirely in memory (single rooms, arenas, linear corridors)",
+        "When you need explicit manual control over what loads and when (use classic Level Streaming instead)",
+        "For projects targeting very low memory platforms where the streaming overhead is not justified",
+        "When your game design requires fully isolated levels with no spatial continuity (e.g., separate multiplayer maps)"
+      ],
+      "relatedClasses": [
+        "UWorldPartition",
+        "UWorldPartitionSubsystem",
+        "AWorldPartitionVolume",
+        "UWorldPartitionRuntimeHash",
+        "UHLODLayer",
+        "AWorldDataLayers",
+        "UDataLayerAsset"
+      ],
+      "commonMistakes": [
+        "Placing critical gameplay actors outside the grid bounds, causing them to never stream in",
+        "Not setting up HLOD layers, leaving empty space where distant unloaded cells should show proxy geometry",
+        "Forgetting that World Partition uses One Actor Per File — source control workflows must adapt to many small files",
+        "Setting the loading range too small, causing visible pop-in as the player moves quickly",
+        "Not adding custom streaming sources for non-player cameras (spectator, security camera) that need content loaded around them"
+      ],
+      "keyPoints": [
+        "Enable: World Settings > World Partition > Enable World Partition",
+        "Grid-based streaming: world is divided into cells. Cells load/unload based on distance from streaming sources.",
+        "Streaming source: by default, player cameras. Can add custom streaming sources.",
+        "Loading range: configurable per grid. Actors beyond the range are unloaded from memory.",
+        "One Actor Per File (OFPA): each actor is saved as its own file, enabling multi-user editing.",
+        "HLOD (Hierarchical Level of Detail): low-detail proxies shown for distant unloaded cells.",
+        "Replaces sub-levels for open worlds. No manual level boundary setup needed.",
+        "Data Layers: categorize actors into layers that can be loaded/unloaded independently (gameplay layers, cinematic layers)."
+      ],
+      "tags": ["world partition", "open world", "streaming", "grid", "hlod", "ofpa", "data layer"]
+    },
+    {
+      "id": "ref_wp_002",
+      "title": "Level Streaming (Classic)",
+      "description": "Level Streaming loads/unloads sub-levels at runtime. Used for indoor areas, dungeons, separate game zones, or any non-open-world map structure. Still supported alongside World Partition.",
+      "whatItIs": "Classic Level Streaming is UE5's original system for loading and unloading separate .umap sub-level files at runtime, triggered by volumes, Blueprint calls, or C++ code, enabling manual control over what content is in memory at any given time.",
+      "whenToUse": [
+        "For indoor/outdoor transitions where you want explicit control over when areas load",
+        "For linear or semi-linear games with distinct zones (dungeons, floors, arenas)",
+        "When you need to load entirely separate gameplay environments (different game modes in different levels)",
+        "For multiplayer map transitions using Seamless Travel to avoid disconnecting clients",
+        "When memory management requires precise manual control over loaded content"
+      ],
+      "whenNotToUse": [
+        "For large open-world games where World Partition's automatic grid streaming is more appropriate",
+        "When you want automatic distance-based streaming without manually placing volumes or writing loading code",
+        "When multiple developers need to edit the same world space — sub-levels create file-locking conflicts"
+      ],
+      "relatedClasses": [
+        "ULevelStreaming",
+        "ULevelStreamingDynamic",
+        "ALevelStreamingVolume",
+        "UGameplayStatics",
+        "FLatentActionInfo",
+        "UWorld",
+        "UEngine"
+      ],
+      "commonMistakes": [
+        "Not handling the asynchronous nature of level loading — accessing actors in a level that is not yet fully loaded",
+        "Forgetting to use FLatentActionInfo correctly, causing the completion callback to never fire",
+        "Loading too many sub-levels simultaneously, causing a frame rate hitch from the loading spike",
+        "Not using SetLevelVisibility() when you want to hide a level without unloading it (cheaper than unload/reload)",
+        "Using non-Seamless Travel for multiplayer, disconnecting all clients during map transitions"
+      ],
+      "keyPoints": [
+        "Sub-levels: separate .umap files that load into the persistent level",
+        "Level Streaming Volumes: trigger loading when player enters a volume",
+        "Blueprint/Code: UGameplayStatics::LoadStreamLevel(), UnloadStreamLevel()",
+        "FLatentActionInfo: the callback mechanism for stream level completion",
+        "SetLevelVisibility(): show/hide a loaded level without unloading it",
+        "GetStreamingLevel(LevelName): get the ULevelStreaming object for status checks",
+        "Seamless Travel: ServerTravel for multiplayer map changes without disconnecting clients",
+        "Use for: indoor/outdoor transitions, separate game modes in different levels, memory management"
+      ],
+      "codeExample": "// Load a sub-level\nFLatentActionInfo LatentInfo;\nLatentInfo.CallbackTarget = this;\nLatentInfo.ExecutionFunction = TEXT(\"OnLevelLoaded\");\nLatentInfo.UUID = 1;\nLatentInfo.Linkage = 0;\n\nUGameplayStatics::LoadStreamLevel(GetWorld(), TEXT(\"Dungeon_01\"), true, true, LatentInfo);\n\n// Callback when loaded\nUFUNCTION()\nvoid OnLevelLoaded() {\n    UE_LOG(LogTemp, Log, TEXT(\"Dungeon loaded!\"));\n}\n\n// Unload\nUGameplayStatics::UnloadStreamLevel(GetWorld(), TEXT(\"Dungeon_01\"), LatentInfo, false);\n\n// Check if loaded\nULevelStreaming* Level = UGameplayStatics::GetStreamingLevel(GetWorld(), TEXT(\"Dungeon_01\"));\nif (Level && Level->IsLevelLoaded()) {\n    // Level is in memory\n}",
+      "tags": ["level streaming", "sub level", "load", "unload", "stream level", "seamless travel", "persistent"]
+    },
+    {
+      "id": "ref_wp_003",
+      "title": "Level Instances & Packed Level Actors",
+      "description": "Level Instances let you use a sub-level as a reusable prefab. Place multiple instances of the same level in your world, each with independent transforms. Packed Level Actors (PLAs) convert them to lightweight, portable actors.",
+      "whatItIs": "Level Instances are reusable sub-level prefabs that can be placed multiple times in a world with independent transforms, while Packed Level Actors (PLAs) flatten a Level Instance into a single portable actor that integrates with World Partition and HLOD, enabling modular world-building workflows.",
+      "whenToUse": [
+        "For modular building construction using repeating room templates, corridor sections, or floor plans",
+        "When you want to edit one instance of a room and have all copies update automatically",
+        "For dungeon or procedural level design using reusable tile-based pieces",
+        "Use Packed Level Actors when Level Instances need to work with World Partition streaming and HLOD"
+      ],
+      "whenNotToUse": [
+        "For unique one-off areas that will never be reused — just place actors directly",
+        "When the level content needs to vary significantly per instance (Level Instances share the same source)",
+        "For dynamic runtime spawning of level chunks — consider Level Streaming or runtime actor spawning instead"
+      ],
+      "relatedClasses": [
+        "ALevelInstance",
+        "APackedLevelActor",
+        "ULevelInstanceSubsystem",
+        "ULevelStreamingLevelInstance",
+        "UWorld",
+        "UWorldPartition"
+      ],
+      "commonMistakes": [
+        "Editing a Level Instance without realizing all instances share the same source — unintentional changes propagate everywhere",
+        "Not converting to Packed Level Actors when using World Partition, causing streaming and HLOD issues",
+        "Placing overlapping Level Instances without checking for collision or navmesh conflicts between them",
+        "Forgetting that Level Instance transforms apply to all contained actors — scale can cause unexpected results",
+        "Using Level Instances for content that needs per-instance variation — consider using child actor components or data-driven differences instead"
+      ],
+      "keyPoints": [
+        "Level Instance: place a sub-level multiple times in your world (like a room template)",
+        "Each instance has its own transform (position, rotation, scale)",
+        "Edit one instance and all instances update (shared source level)",
+        "Packed Level Actor: converts a Level Instance to a single actor for easier management",
+        "Packed Level Actors work with World Partition and HLOD generation",
+        "Use for: modular building pieces, repeating room layouts, dungeon tiles",
+        "Create: Content Browser > Level > place in world with Level Instance actor"
+      ],
+      "tags": ["level instance", "packed level actor", "prefab", "modular", "reusable", "template"]
+    }
+  ]
+}

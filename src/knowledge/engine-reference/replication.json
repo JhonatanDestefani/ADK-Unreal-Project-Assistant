@@ -1,0 +1,264 @@
+{
+  "category": "replication",
+  "displayName": "Replication & Networking",
+  "description": "UE5 networking model: property replication, RPCs, network roles, ownership, relevancy, and multiplayer architecture",
+  "entries": [
+    {
+      "id": "ref_rep_001",
+      "title": "Replication Overview",
+      "description": "UE5 uses a server-authoritative model. The server runs the game simulation and replicates state to clients. Clients send input to the server via RPCs. The server validates and applies changes, which then replicate back.",
+      "whatItIs": "UE5's replication system is a server-authoritative networking framework where the server maintains the canonical game state and pushes property changes to connected clients, while clients communicate intentions to the server through Remote Procedure Calls (RPCs).",
+      "whenToUse": [
+        "When building any multiplayer game that requires synchronized state between players",
+        "When game logic must be validated by a central authority to prevent cheating",
+        "When you need actors, properties, or events to be visible across multiple connected machines",
+        "For any online or LAN multiplayer mode including co-op, competitive, or MMO-style games"
+      ],
+      "whenNotToUse": [
+        "For purely single-player games with no networking requirements",
+        "When a peer-to-peer lockstep model is more appropriate (e.g., deterministic RTS games)",
+        "For cosmetic-only effects that have no gameplay impact — handle those locally instead",
+        "When you need extremely low-latency input mirroring and server authority adds unacceptable delay"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "UActorChannel",
+        "UNetDriver",
+        "UNetConnection",
+        "APlayerController",
+        "AGameModeBase"
+      ],
+      "commonMistakes": [
+        "Forgetting to set bReplicates = true on the actor, causing no replication to occur at all",
+        "Trying to replicate properties from client to server — property replication is server-to-client only",
+        "Spawning replicated actors on clients instead of on the server, causing desync",
+        "Setting Net Update Frequency too high, wasting bandwidth, or too low, causing stale data on clients",
+        "Not understanding that the server is the only machine that should make authoritative gameplay decisions"
+      ],
+      "keyPoints": [
+        "Server-authoritative: the server is the source of truth for all game state",
+        "Property replication: server → clients (one-way). Clients cannot replicate to server",
+        "RPCs: function calls that execute on a different machine (Server, Client, or NetMulticast)",
+        "The actor must have bReplicates = true to participate in networking",
+        "Only the server should spawn replicated actors — they auto-appear on clients",
+        "Net Update Frequency controls how often an actor checks for replicated property changes"
+      ],
+      "tags": ["replication", "server authoritative", "networking", "multiplayer", "overview"]
+    },
+    {
+      "id": "ref_rep_002",
+      "title": "Property Replication Setup",
+      "description": "To replicate a property from server to clients, mark it with UPROPERTY(Replicated) or UPROPERTY(ReplicatedUsing=OnRep_Func), and register it in GetLifetimeReplicatedProps().",
+      "whatItIs": "Property replication is UE5's mechanism for automatically synchronizing UPROPERTY-marked variables from the server to clients, with optional OnRep callback functions that fire on the client when the value changes, enabling reactive UI updates and gameplay responses.",
+      "whenToUse": [
+        "When a gameplay variable (health, ammo, score, team) must be visible to one or more clients",
+        "When clients need to react to value changes via OnRep callbacks (e.g., updating a health bar)",
+        "When using COND_OwnerOnly for private player data like inventory or ability cooldowns",
+        "When using COND_InitialOnly for data that only needs to be sent once (team color, player name)"
+      ],
+      "whenNotToUse": [
+        "For cosmetic or local-only data that does not affect gameplay across machines",
+        "When the data changes extremely frequently and bandwidth is a concern — consider RPCs or custom serialization",
+        "For transient effects like particle spawn locations that are better sent via unreliable Multicast RPCs",
+        "When the property is only needed on the server (e.g., internal AI state)"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "UActorComponent",
+        "FLifetimeProperty",
+        "FRepLayout",
+        "FRepState",
+        "UNetDriver"
+      ],
+      "commonMistakes": [
+        "Declaring UPROPERTY(Replicated) but forgetting to register it in GetLifetimeReplicatedProps() — replication silently fails",
+        "Forgetting to call Super::GetLifetimeReplicatedProps() in the override, breaking parent class replication",
+        "Expecting OnRep functions to fire on the server — they only fire on clients receiving the replicated value",
+        "Using ReplicatedUsing but misspelling the OnRep function name, causing a compile or link error",
+        "Not understanding replication conditions — sending data to all clients when COND_OwnerOnly would reduce bandwidth"
+      ],
+      "keyPoints": [
+        "Step 1: UPROPERTY(Replicated) or UPROPERTY(ReplicatedUsing=OnRep_FuncName)",
+        "Step 2: override GetLifetimeReplicatedProps() and add DOREPLIFETIME(Class, Property)",
+        "Both steps are required — missing either one means no replication",
+        "OnRep functions fire on clients when the replicated value changes",
+        "DOREPLIFETIME_CONDITION for conditional replication: COND_OwnerOnly, COND_SkipOwner, COND_InitialOnly, COND_Custom",
+        "COND_InitialOnly: replicates once then never again (good for static data like team color)"
+      ],
+      "codeExample": "// Header\nUPROPERTY(ReplicatedUsing = OnRep_Health)\nfloat Health = 100.f;\n\nUFUNCTION()\nvoid OnRep_Health();\n\n// Source\nvoid AMyChar::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const {\n    Super::GetLifetimeReplicatedProps(OutLifetimeProps);\n    DOREPLIFETIME(AMyChar, Health);\n    // Or with condition:\n    // DOREPLIFETIME_CONDITION(AMyChar, Health, COND_OwnerOnly);\n}\n\nvoid AMyChar::OnRep_Health() {\n    // Called on clients when Health changes\n    UpdateHealthBar();\n}",
+      "tags": ["property replication", "doreplifetime", "onrep", "replicated", "condition"]
+    },
+    {
+      "id": "ref_rep_003",
+      "title": "RPCs (Remote Procedure Calls)",
+      "description": "RPCs are functions that execute on a different machine. Server RPCs are called by the owning client and run on the server. Client RPCs are called by the server and run on the owning client. Multicast RPCs run on server and all clients.",
+      "whatItIs": "RPCs (Remote Procedure Calls) are UFUNCTION-marked functions that, when called on one machine, execute on a different machine — enabling clients to request actions from the server (Server RPCs), the server to notify specific clients (Client RPCs), or the server to broadcast events to all connected machines (NetMulticast RPCs).",
+      "whenToUse": [
+        "Server RPCs: when a client needs to request an action from the server (fire weapon, use ability, interact)",
+        "Client RPCs: when the server needs to notify a specific client of something (show UI message, play local effect)",
+        "NetMulticast RPCs: when all clients need to see the same event (explosion effect, global announcement)",
+        "Use Reliable for gameplay-critical events that must not be lost (damage, ability activation, state changes)",
+        "Use Unreliable for cosmetic effects that can be skipped under network congestion (particles, sounds)"
+      ],
+      "whenNotToUse": [
+        "Do not use RPCs for continuously changing state — use property replication instead (e.g., health, position)",
+        "Do not use Reliable RPCs for high-frequency cosmetic events — this can saturate the reliable buffer and crash",
+        "Avoid Server RPCs from actors the client does not own — they will be rejected by the engine",
+        "Do not use Multicast for data only one client needs — use Client RPCs to save bandwidth"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "APlayerController",
+        "UNetDriver",
+        "UNetConnection",
+        "UActorChannel",
+        "UCharacterMovementComponent"
+      ],
+      "commonMistakes": [
+        "Calling a Server RPC from an actor the client does not own — the call is silently dropped",
+        "Using Reliable for high-frequency events (like every-frame updates), overflowing the reliable buffer and causing disconnects",
+        "Forgetting to implement the _Implementation() function — the RPC compiles but does nothing",
+        "Not adding WithValidation on Server RPCs, missing an opportunity to reject malicious or invalid input",
+        "Calling a NetMulticast RPC from a client instead of the server — it will only execute locally"
+      ],
+      "keyPoints": [
+        "Server RPC: UFUNCTION(Server, Reliable). Client calls → executes on server. Must be called by the owning connection.",
+        "Client RPC: UFUNCTION(Client, Reliable). Server calls → executes on owning client only.",
+        "NetMulticast RPC: UFUNCTION(NetMulticast, Reliable). Server calls → executes on server AND all clients.",
+        "Reliable: guaranteed delivery, ordered. Use for important events (damage, ability activation).",
+        "Unreliable: may be dropped under congestion. Use for cosmetic/non-critical (animation cues, particles).",
+        "WithValidation: adds a _Validate function for anti-cheat checking on Server RPCs.",
+        "Implementation goes in FuncName_Implementation(). Validation in FuncName_Validate()."
+      ],
+      "codeExample": "// Server RPC - client sends fire request to server\nUFUNCTION(Server, Reliable, WithValidation)\nvoid ServerFire(FVector Origin, FVector Direction);\n\nbool AMyChar::ServerFire_Validate(FVector Origin, FVector Direction) {\n    return Direction.IsNormalized(); // Anti-cheat\n}\nvoid AMyChar::ServerFire_Implementation(FVector Origin, FVector Direction) {\n    // Server spawns projectile, applies damage\n    SpawnProjectile(Origin, Direction);\n}\n\n// Multicast - everyone sees the effect\nUFUNCTION(NetMulticast, Unreliable)\nvoid MulticastPlayFireEffect();\n\nvoid AMyChar::MulticastPlayFireEffect_Implementation() {\n    PlayMuzzleFlash();\n    PlayFireSound();\n}",
+      "tags": ["rpc", "server", "client", "multicast", "reliable", "unreliable", "validation"]
+    },
+    {
+      "id": "ref_rep_004",
+      "title": "Network Roles & Ownership",
+      "description": "Every replicated actor has a Local Role and Remote Role. Understanding these is essential for writing correct multiplayer code.",
+      "whatItIs": "Network Roles (Authority, AutonomousProxy, SimulatedProxy, None) define what each machine's relationship is to a given actor, while Ownership tracks which client connection controls a given actor — together they determine what code runs where and who can call Server RPCs.",
+      "whenToUse": [
+        "Check HasAuthority() to gate server-only logic like applying damage or spawning projectiles",
+        "Check IsLocallyControlled() to gate client-only logic like input handling or local camera effects",
+        "Use role checks to run different logic paths on server vs. owning client vs. other clients",
+        "Verify ownership when debugging Server RPCs that are silently failing"
+      ],
+      "whenNotToUse": [
+        "Do not rely solely on role checks for security — always validate on the server side",
+        "Avoid complex role-checking logic when simpler HasAuthority() or IsLocallyControlled() suffice",
+        "Do not assume ROLE_Authority always means dedicated server — in listen server, the host is both authority and a client"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "APlayerController",
+        "APawn",
+        "APlayerState",
+        "UNetConnection",
+        "ENetRole"
+      ],
+      "commonMistakes": [
+        "Confusing HasAuthority() with IsLocallyControlled() — they answer different questions",
+        "Forgetting that on a listen server, the host's Pawn is both Authority AND locally controlled",
+        "Not setting ownership correctly, causing Server RPCs to be rejected by the engine",
+        "Running cosmetic effects on the server (where no one sees them) instead of checking for local role",
+        "Assuming ROLE_SimulatedProxy actors receive OnRep callbacks — they do, but at the replication rate, not immediately"
+      ],
+      "keyPoints": [
+        "ROLE_Authority: this machine owns the authoritative simulation (usually the server)",
+        "ROLE_AutonomousProxy: the owning client's version of their own Pawn. Has input prediction.",
+        "ROLE_SimulatedProxy: other clients' view of someone else's Pawn. Receives replicated state only.",
+        "ROLE_None: not replicated",
+        "HasAuthority(): returns true if this machine has ROLE_Authority for this actor",
+        "IsLocallyControlled(): true on the machine that owns input for this Pawn",
+        "Ownership chain: Connection → PlayerController → Pawn. Server RPCs require correct ownership."
+      ],
+      "tags": ["roles", "authority", "autonomous proxy", "simulated proxy", "ownership", "connection"]
+    },
+    {
+      "id": "ref_rep_005",
+      "title": "Net Relevancy & Priority",
+      "description": "Not all actors replicate to all clients at all times. Net Relevancy determines which clients receive updates for which actors.",
+      "whatItIs": "Net Relevancy is UE5's system for filtering which actors replicate to which clients based on distance, ownership, and custom logic, combined with Net Priority which determines bandwidth allocation order when the network is saturated — together they optimize multiplayer bandwidth usage.",
+      "whenToUse": [
+        "Use NetCullDistanceSquared to stop replicating actors too far from a client's viewpoint",
+        "Use bAlwaysRelevant for globally important actors like GameState or match timers",
+        "Use bOnlyRelevantToOwner for private player data like inventory or personal HUD state",
+        "Use Dormancy for actors that rarely change to reduce unnecessary replication checks",
+        "Override IsNetRelevantFor() when you need custom relevancy logic beyond simple distance"
+      ],
+      "whenNotToUse": [
+        "Do not set bAlwaysRelevant on every actor — this defeats the purpose of relevancy culling",
+        "Avoid extremely small NetCullDistanceSquared values that cause actors to pop in/out noticeably",
+        "Do not rely on relevancy alone for security — clients may have seen the data before the actor became irrelevant"
+      ],
+      "relatedClasses": [
+        "AActor",
+        "UNetDriver",
+        "UNetConnection",
+        "APlayerController",
+        "UReplicationGraph",
+        "UReplicationGraphNode"
+      ],
+      "commonMistakes": [
+        "Setting bAlwaysRelevant on too many actors, causing unnecessary bandwidth usage",
+        "Forgetting that NetCullDistanceSquared is squared — passing a linear distance value results in an extremely small cull range",
+        "Not using Dormancy for mostly-static actors, wasting CPU cycles checking for changes every net update",
+        "Assuming actors become irrelevant instantly — there is hysteresis to prevent rapid load/unload flickering",
+        "Not considering that when an actor becomes relevant again, all its replicated properties are re-sent (initial burst)"
+      ],
+      "keyPoints": [
+        "NetCullDistanceSquared: actors farther than this from the client's viewpoint are not relevant",
+        "bAlwaysRelevant: if true, this actor replicates to ALL clients regardless of distance",
+        "bOnlyRelevantToOwner: if true, only replicates to the owning client (good for inventory, private data)",
+        "IsNetRelevantFor(): virtual function you can override for custom relevancy logic",
+        "NetPriority: higher priority actors get bandwidth first when the network is saturated",
+        "Dormancy: actors can go dormant to stop checking for replication (wake on property change)"
+      ],
+      "tags": ["relevancy", "net cull", "priority", "dormancy", "bandwidth", "always relevant"]
+    },
+    {
+      "id": "ref_rep_006",
+      "title": "Character Movement Replication & Prediction",
+      "description": "CharacterMovementComponent has built-in client-side prediction. The client predicts movement locally, sends input to the server, and the server corrects if the prediction was wrong.",
+      "whatItIs": "UE5's CharacterMovementComponent implements a client-side prediction and server reconciliation system where the owning client predicts movement locally for responsive gameplay, sends timestamped input snapshots (Saved Moves) to the server for validation, and replays pending moves if the server issues a correction.",
+      "whenToUse": [
+        "When building any multiplayer game with player-controlled characters that move",
+        "When you need responsive movement without waiting for server round-trip latency",
+        "When you want built-in support for walking, falling, swimming, and flying movement modes",
+        "When extending with custom movement modes that need prediction support"
+      ],
+      "whenNotToUse": [
+        "For vehicle movement — use a dedicated vehicle movement component instead",
+        "For non-character entities like projectiles or physics objects that use their own replication",
+        "When building a fully server-authoritative game where client prediction is not desired (turn-based)",
+        "For AI-controlled characters that only need server-side movement (no prediction needed)"
+      ],
+      "relatedClasses": [
+        "UCharacterMovementComponent",
+        "ACharacter",
+        "FSavedMove_Character",
+        "FCharacterNetworkMoveData",
+        "FRootMotionSource",
+        "APlayerController"
+      ],
+      "commonMistakes": [
+        "Not overriding FSavedMove_Character when adding custom input data, causing desync between predicted and corrected movement",
+        "Applying movement logic only on the client without mirroring it on the server, leading to constant corrections",
+        "Forgetting that root motion must be replicated via RootMotionSource for proper prediction",
+        "Setting NetworkSmoothingMode incorrectly, causing visible rubber-banding on simulated proxies",
+        "Running gameplay logic in the movement prediction path that has side effects (spawning actors, dealing damage) — prediction can replay multiple times"
+      ],
+      "keyPoints": [
+        "Client predicts movement locally for responsive feel (no waiting for server)",
+        "Client sends Saved Moves to server: timestamped input snapshots",
+        "Server re-simulates the movement and sends corrections if prediction was wrong",
+        "If correction happens, client replays all pending moves from the corrected position",
+        "Simulated proxies (other players) use interpolation/extrapolation for smooth display",
+        "NetworkSmoothingMode: Disabled, Linear, Exponential — controls how corrections appear",
+        "For custom movement modes: override FSavedMove_Character to include custom input data"
+      ],
+      "tags": ["character movement", "prediction", "saved moves", "correction", "smoothing", "interpolation"]
+    }
+  ]
+}
