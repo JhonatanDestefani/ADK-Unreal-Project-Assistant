@@ -21,8 +21,19 @@ router.post('/ask', async (req, res) => {
     const ctx = context.buildContext({ projectPath, currentFile, selectedClass, question });
     const result = await guide.ask(question, ctx);
 
+    // Append common mistakes from KB if relevant
+    const knowledge = require('../knowledge');
+    const kbResults = knowledge.search(question, { source: 'engine-reference', limit: 1, minScore: 10 });
+    let answer = result.answer;
+    if (kbResults.length > 0 && kbResults[0].commonMistakes && kbResults[0].commonMistakes.length > 0) {
+      answer += '\n\n---\n\n**⚠️ Common Mistakes:**\n';
+      for (const mistake of kbResults[0].commonMistakes) {
+        answer += `- ${mistake}\n`;
+      }
+    }
+
     res.json({
-      answer: result.answer,
+      answer,
       usage: result.usage,
     });
   } catch (err) {

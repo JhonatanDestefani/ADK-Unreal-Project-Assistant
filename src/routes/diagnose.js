@@ -110,6 +110,7 @@ router.post('/kb/search', (req, res) => {
         solution: r.solution || null,
         keyPoints: r.keyPoints || null,
         codeExample: r.codeExample || null,
+        commonMistakes: r.commonMistakes || null,
         goodPractices: r.goodPractices || null,
         symptoms: r.symptoms || null,
         tags: r.tags || null,

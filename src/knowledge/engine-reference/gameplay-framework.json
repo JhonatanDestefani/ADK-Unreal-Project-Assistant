@@ -229,11 +229,12 @@
         "USkeletalMeshComponent"
       ],
       "commonMistakes": [
-        "Using ACharacter for vehicles or flying drones — CharacterMovementComponent is designed for bipedal movement and adds unnecessary overhead",
-        "Placing gameplay logic in the Pawn that belongs in the Controller, coupling AI and player behavior together",
+        "Telling users to manually add a USkeletalMeshComponent to ACharacter — it already includes a built-in Mesh component. In most cases, you only need to assign the skeletal mesh asset to that existing component",
+        "Using ACharacter for entities that do not need character movement features — this adds unnecessary overhead from CharacterMovementComponent and other built-in systems",
+        "Mixing input/control responsibilities with character-specific gameplay logic — this leads to tightly coupled code and makes the project harder to scale",
+        "Driving normal character movement by directly setting actor location — this bypasses systems such as collision resolution and network prediction. A movement component is usually the better choice",
+        "Not calling Super::SetupPlayerInputComponent() — this can break inherited input setup from parent classes",
         "Forgetting that SetupPlayerInputComponent is only called for the locally controlled Pawn — do not rely on it for server-side setup",
-        "Directly setting actor location for movement instead of using the MovementComponent, which breaks collision and network prediction",
-        "Not calling Super::SetupPlayerInputComponent(), breaking parent class input bindings",
         "Assuming the Pawn always has a valid Controller — it can be unpossessed"
       ],
       "keyPoints": [
@@ -246,7 +247,7 @@
         "Destroyed on death — PlayerController survives and possesses a new Pawn on respawn"
       ],
       "codeExample": "UCLASS()\nclass AMyCharacter : public ACharacter {\n    GENERATED_BODY()\npublic:\n    AMyCharacter() {\n        // CharacterMovement is auto-created\n        GetCharacterMovement()->MaxWalkSpeed = 600.f;\n        GetCharacterMovement()->JumpZVelocity = 420.f;\n    }\n    \n    virtual void SetupPlayerInputComponent(UInputComponent* PIC) override {\n        Super::SetupPlayerInputComponent(PIC);\n        // Bind input here — only called for locally controlled pawn\n    }\n};",
-      "blueprintExample": "Blueprint Setup:\n1. Create a new Blueprint Class with parent 'Character'\n2. The Blueprint automatically comes with: CapsuleComponent, ArrowComponent, Mesh (SkeletalMesh), and CharacterMovement\n3. Select the 'CharacterMovement' component in the Components panel to configure:\n   - Max Walk Speed (default 600)\n   - Jump Z Velocity (default 420)\n   - Can Crouch, Can Swim, Can Fly, etc.\n4. To set up the mesh: select the 'Mesh' component → set Skeletal Mesh and Animation Blueprint\n5. For input: in Event Graph, use 'Event SetupPlayerInputComponent' or use Enhanced Input Actions\n6. To move: use 'Add Movement Input' node with 'Get Actor Forward Vector' for direction\n7. To jump: use the built-in 'Jump' and 'Stop Jumping' functions — enable 'Can Jump' in CharacterMovement",
+      "blueprintExample": "Blueprint Setup:\n1. Create a new Blueprint Class with parent 'Character'\n2. The Blueprint ALREADY comes with: CapsuleComponent, ArrowComponent, Mesh (SkeletalMeshComponent), and CharacterMovementComponent — do NOT add these manually\n3. Select the 'CharacterMovement' component in the Components panel to configure:\n   - Max Walk Speed (default 600)\n   - Jump Z Velocity (default 420)\n   - Can Crouch, Can Swim, Can Fly, etc.\n4. To set up the mesh: select the existing 'Mesh' component → assign your Skeletal Mesh asset and Animation Blueprint\n5. Input handling can be done in the Character or in the PlayerController — placing it in the PlayerController offers better separation, but both approaches are valid\n6. To move: use 'Add Movement Input' node with 'Get Actor Forward Vector' for direction\n7. To jump: use the built-in 'Jump' and 'Stop Jumping' functions — enable 'Can Jump' in CharacterMovement\n8. Optionally add a Camera component and Spring Arm for third-person or first-person view",
       "tags": ["pawn", "character", "movement", "possess", "capsule", "input"]
     },
     {
